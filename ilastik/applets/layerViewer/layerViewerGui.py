@@ -490,6 +490,10 @@ class LayerViewerGui(QWidget):
         # Load the ui file (find it in our own directory)
         localDir = os.path.split(__file__)[0]
         self._drawer = uic.loadUi(localDir+"/drawer.ui")
+        
+        def setNumChannels():
+            self.topLevelOperatorView.NumChannels.setValue( 1 )
+        self._drawer.pushButton.clicked.connect( setNumChannels )
 
     def getAppletDrawerUi(self):
         return self._drawer

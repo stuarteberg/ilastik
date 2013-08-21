@@ -13,13 +13,34 @@ class OpLayerViewer(Operator):
 
     RawInput = InputSlot()
     OtherInput = InputSlot(optional=True)
+    
+    NumChannels = InputSlot(optional=True)
+    Output = OutputSlot()
 
     def __init__(self, *args, **kwargs):
         super( OpLayerViewer, self ).__init__(*args, **kwargs)
         
         self.RawInput.notifyReady( self.checkConstraints )
         self.OtherInput.notifyReady( self.checkConstraints )
+
+    def setupOutputs(self):
+        if self.OtherInput.ready():
+            self.Output.meta.assignFrom( self.OtherInput.meta )
+            if self.NumChannels.ready():
+                tagged_shape = self.Output.meta.getTaggedShape()
+                tagged_shape['c'] = self.NumChannels.value
+                self.Output.meta.shape = tuple( tagged_shape.values() )
+        else:
+            self.Output.meta.NOTREADY = True
         
+    def execute(self, slot, subindex, rroi, result):
+        result[:] = self.OtherInput[rroi.toSlice()].wait()
+        return result
+
+    def propagateDirty(self, slot, subindex, roi):
+        if slot == self.OtherInput:
+            self.Output.setDirty( roi )
+    
     def checkConstraints(self, *args):
         """
         Example of how to check input data constraints.
