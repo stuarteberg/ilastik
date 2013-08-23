@@ -54,6 +54,9 @@ class LayerViewerWorkflow(Workflow):
         opDataExportView.RawDatasetInfo.connect( opDataSelectionView.DatasetGroup[0] )        
         opDataExportView.WorkingDirectory.connect( opDataSelectionView.WorkingDirectory )
 
+    def handleAppletStatus(self, applet, status):
+        
+
     @property
     def applets(self):
         return self._applets

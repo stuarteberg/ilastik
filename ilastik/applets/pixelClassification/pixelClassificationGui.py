@@ -61,7 +61,7 @@ class PixelClassificationGui(LabelingGui):
     ###########################################
     ###########################################
 
-    def __init__(self, topLevelOperatorView, shellRequestSignal, guiControlSignal, predictionSerializer ):
+    def __init__(self, parentApplet, topLevelOperatorView ):
         # Tell our base class which slots to monitor
         labelSlots = LabelingGui.LabelingSlots()
         labelSlots.labelInput = topLevelOperatorView.LabelInputs
@@ -81,9 +81,9 @@ class PixelClassificationGui(LabelingGui):
         super(PixelClassificationGui, self).__init__( labelSlots, topLevelOperatorView, labelingDrawerUiPath )
         
         self.topLevelOperatorView = topLevelOperatorView
-        self.shellRequestSignal = shellRequestSignal
-        self.guiControlSignal = guiControlSignal
-        self.predictionSerializer = predictionSerializer
+        self.shellRequestSignal = parentApplet.shellRequestSignal
+        self.guiControlSignal = parentApplet.guiControlSignal
+        self.predictionSerializer = parentApplet.predictionSerializer
 
         self.interactiveModeActive = False
         # Immediately update our interactive state

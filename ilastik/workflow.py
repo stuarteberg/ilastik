@@ -1,7 +1,8 @@
 from abc import abstractproperty, abstractmethod
-from lazyflow.graph import Operator, OperatorMetaClass, Graph
-from ilastik.utility.subclassRegistry import SubclassRegistryMeta
+from lazyflow.graph import Operator, Graph
 from string import ascii_uppercase
+from functools import partial
+from ilastik.utility import SimpleSignal
 
 class Workflow( Operator ):
     """
@@ -66,6 +67,24 @@ class Workflow( Operator ):
         """
         pass
     
+    def handleAppletStatus(self, applet, status):
+        """
+        Called when an applet has fired the :py:attr:`Applet.statusUpdateSignal`
+        Workflow subclasses should reimplement this method to enable/disable applet gui's 
+        """
+        pass
+
+    #############
+    # Constants #
+    #############
+    class State(object):
+        """
+        Enumeration of possible Workflow states, signaled via the :py:attr:`statusUpdateSignal`
+        The shell should respond by enabling/disabling user actions (e.g. "save project", "quit")
+        """
+        Interruptable = 0 
+        Uninterruptable = 1 
+
     ##################
     # Public methods #
     ##################
@@ -89,6 +108,8 @@ class Workflow( Operator ):
             graph = Graph()
         super(Workflow, self).__init__(parent=parent, graph=graph)
         self._headless = headless
+        
+        self.statusUpdateSignal = SimpleSignal()
 
     def cleanUp(self):
         """
@@ -123,6 +144,9 @@ class Workflow( Operator ):
         # When a new image is added to the workflow, each applet should get a new lane.
         self.imageNameListSlot.notifyInserted( self._createNewImageLane )
         self.imageNameListSlot.notifyRemove( self._removeImageLane )
+        
+        for applet in self.applets:
+            applet.statusUpdateSignal.connect( partial(self.handleAppletStatus, applet) )
         
     def _createNewImageLane(self, multislot, index, *args):
         """

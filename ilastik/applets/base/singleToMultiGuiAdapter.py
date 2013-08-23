@@ -1,9 +1,11 @@
+import weakref
+
 class SingleToMultiGuiAdapter( object ):
     """
     Utility class used by the StandardApplet to wrap several single-image 
     GUIs into one multi-image GUI, which is what the shell/Applet API requires.
     """
-    def __init__(self, singleImageGuiFactory, topLevelOperator):
+    def __init__(self, singleImageGuiFactory, topLevelOperator, parentApplet):
         self.singleImageGuiFactory = singleImageGuiFactory
         self._imageLaneIndex = None
         self._guis = []

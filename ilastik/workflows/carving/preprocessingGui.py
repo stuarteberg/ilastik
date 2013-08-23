@@ -14,7 +14,7 @@ from ilastik.utility.gui import ThreadRouter, threadRouted
 from preprocessingViewerGui import PreprocessingViewerGui
 
 class PreprocessingGui(QMainWindow):
-    def __init__(self, topLevelOperatorView):
+    def __init__(self, parentApplet, topLevelOperatorView):
         super(PreprocessingGui,self).__init__()
         
         self.drawer = None

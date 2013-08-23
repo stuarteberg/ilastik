@@ -179,6 +179,9 @@ class PixelClassificationWorkflow(Workflow):
 
         self.opBatchPredictionPipeline = opBatchPredictionPipeline
 
+    def handleAppletStatus(self, applet, status):
+        
+
     def getHeadlessOutputSlot(self, slotId):
         # "Regular" (i.e. with the images that the user selected as input data)
         if slotId == "Predictions":

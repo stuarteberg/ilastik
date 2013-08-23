@@ -78,12 +78,12 @@ class FeatureSelectionGui(LayerViewerGui):
     ###########################################
     ###########################################
     
-    def __init__(self, topLevelOperatorView, applet):
+    def __init__(self, parentApplet, topLevelOperatorView):
         """
         """
         self.topLevelOperatorView = topLevelOperatorView
         super(FeatureSelectionGui, self).__init__(topLevelOperatorView, crosshair=False)
-        self.applet = applet
+        self.applet = parentApplet
         
         self.__cleanup_fns = []
 

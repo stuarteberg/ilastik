@@ -119,7 +119,7 @@ class StandardApplet( Applet ):
             message += "singleLaneGuiClass, createSingleLaneGui, or getMultiLaneGui"
             raise NotImplementedError(message)
         singleLaneOperator = self.topLevelOperator.getLane( imageLaneIndex )
-        return self.singleLaneGuiClass( singleLaneOperator )
+        return self.singleLaneGuiClass( self, singleLaneOperator )
 
     def __createMultiLaneGui(self):
         """

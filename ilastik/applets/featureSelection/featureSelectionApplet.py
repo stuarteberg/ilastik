@@ -25,11 +25,16 @@ class FeatureSelectionApplet( StandardApplet ):
     def broadcastingSlots(self):
         return ['Scales', 'FeatureIds', 'SelectionMatrix', 'FeatureListFilename']
 
-    def createSingleLaneGui( self , laneIndex):
+    @property
+    def singleLaneGuiClass(self):
         from featureSelectionGui import FeatureSelectionGui
-        opFeat = self.topLevelOperator.getLane(laneIndex)
-        gui = FeatureSelectionGui( opFeat, self )
-        return gui
+        return FeatureSelectionGui
+
+#    def createSingleLaneGui( self , laneIndex):
+#        from featureSelectionGui import FeatureSelectionGui
+#        opFeat = self.topLevelOperator.getLane(laneIndex)
+#        gui = FeatureSelectionGui( opFeat, self )
+#        return gui
 
     @property
     def dataSerializers(self):

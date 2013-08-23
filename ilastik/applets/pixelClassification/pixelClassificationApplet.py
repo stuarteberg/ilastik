@@ -35,7 +35,12 @@ class PixelClassificationApplet( StandardApplet ):
     def dataSerializers(self):
         return self._serializableItems
 
-    def createSingleLaneGui(self, imageLaneIndex):
+    @property
+    def singleLaneGuiClass(self):
         from pixelClassificationGui import PixelClassificationGui
-        singleImageOperator = self.topLevelOperator.getLane(imageLaneIndex)
-        return PixelClassificationGui( singleImageOperator, self.shellRequestSignal, self.guiControlSignal, self.predictionSerializer )        
+        return PixelClassificationGui
+
+#    def createSingleLaneGui(self, imageLaneIndex):
+#        from pixelClassificationGui import PixelClassificationGui
+#        singleImageOperator = self.topLevelOperator.getLane(imageLaneIndex)
+#        return PixelClassificationGui( singleImageOperator, self.shellRequestSignal, self.guiControlSignal, self.predictionSerializer )        

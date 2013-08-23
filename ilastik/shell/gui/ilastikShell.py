@@ -67,7 +67,7 @@ class ShellActions(object):
         self.saveProjectAsAction = None
         self.saveProjectSnapshotAction = None
         self.importProjectAction = None
-        self.QuitAction = None
+        self.quitAction = None
  
 #===----------------------------------------------------------------------------------------------------------------===
 #=== MemoryWidget                                                                                                   ===
@@ -818,7 +818,7 @@ class IlastikShell( QMainWindow ):
             lastWidget = stackedWidget.widget(i)
             stackedWidget.removeWidget(lastWidget)
 
-    def handleAppletGuiControlSignal(self, applet_index, command=ControlCommand.DisableAll):
+    def handleAppletGuiControlSignal(self, applet_index, command):
         """
         Applets fire a signal when they want other applet GUIs to be disabled.
         This function handles the signal.

@@ -10,7 +10,7 @@ class Applet( object ):
     __metaclass__ = ABCMeta # Force subclasses to override abstract methods and properties
 
     _base_initialized = False
-    
+
     def __init__( self, name, syncWithImageIndex=True ):
         """
         Constructor.
@@ -44,7 +44,13 @@ class Applet( object ):
         #: Example invocation: ``self.shellRequest.emit(ShellRequest.RequestSave)``
         self.shellRequestSignal = SimpleSignal()
 
+        #: Status signal informs the workflow that the applet is ready, busy, etc.
+        #: See ``AppletStatus``, below.
+        #: Signature: ``emit(status)``
+        self.statusUpdateSignal = SimpleSignal()
+
         self._base_initialized = True
+        self._status = AppletStatus.Uninitialized
 
     @abstractproperty
     def topLevelOperator(self):
@@ -72,6 +78,14 @@ class Applet( object ):
         Subclasses should override this property.  By default, returns [].
         """ 
         return []
+
+    def status(self):
+        return self._status
+
+    def setStatus(self, status):
+        if status != self._status:
+            self._status = status
+            self.statusUpdateSignal.emit( status )
     
     @property
     def base_initialized(self):
@@ -115,3 +129,23 @@ class ShellRequest(object):
     """
     #: Request that the shell perform a "save project" action.
     RequestSave = 0
+
+class AppletStatus(object):
+    """
+    Enumeration of possible status values to be used with :py:attr:`Applet.statusUpdateSignal`
+    """
+    #: The applet can't be used yet because it lacks some configuration
+    Uninitialized = 0
+    
+    #: The applet is ready to be used
+    Ready = 1
+
+    #: The applet can be used, but should not be "interrupted" by closing the project
+    Uninterruptible = 2
+
+    #: The applet is busy and should not be used
+    Untouchable = 3
+
+    #: The applet may be used, but other applets should not be used while the applet is in this state.
+    NeedExclusive = 4
+

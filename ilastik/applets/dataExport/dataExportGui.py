@@ -64,10 +64,9 @@ class DataExportGui(QWidget):
     ###########################################
     ###########################################
     
-    def __init__(self, topLevelOperator, guiControlSignal, progressSignal, title):
+    def __init__(self, parentApplet, topLevelOperator):
         super(DataExportGui, self).__init__()
 
-        self.title = title
         self.drawer = None
         self.topLevelOperator = topLevelOperator
 
@@ -78,8 +77,9 @@ class DataExportGui(QWidget):
         self.initCentralUic()
         self.initViewerControls()
         
-        self.guiControlSignal = guiControlSignal
-        self.progressSignal = progressSignal
+        self.parentApplet = parentApplet
+        self.guiControlSignal = parentApplet.guiControlSignal
+        self.progressSignal = parentApplet.progressSignal
         
         def handleNewDataset( multislot, index ):
             # Make room in the GUI table

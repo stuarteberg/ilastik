@@ -52,7 +52,7 @@ class PreprocessingApplet(StandardApplet):
     def createSingleLaneGui( self , laneIndex):
         from preprocessingGui import PreprocessingGui
         opPre = self.topLevelOperator.getLane(laneIndex)
-        self._gui = PreprocessingGui( opPre )
+        self._gui = PreprocessingGui( self, opPre )
         
         if self.writeprotected:
             self._gui.setWriteprotect()
