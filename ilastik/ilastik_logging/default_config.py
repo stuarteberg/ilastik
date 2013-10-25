@@ -73,6 +73,7 @@ def get_default_config(prefix=""):
             "__main__":                                                 { "level":"INFO" },
             "lazyflow":                                                 { "level":"INFO" },
             "lazyflow.graph":                                           { "level":"INFO" },
+            "lazyflow.graph.SetupDigraphBuilder":                       { "level":"DEBUG" },
             "lazyflow.graph.Slot":                                      { "level":"INFO" },
             "lazyflow.operators":                                       { "level":"INFO" },
             "lazyflow.operators.ioOperators":                           { "level":"INFO" },

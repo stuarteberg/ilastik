@@ -131,12 +131,17 @@ class Workflow( Operator ):
         Operator._after_init(self)
 
         # When a new image is added to the workflow, each applet should get a new lane.
-        self.imageNameListSlot.notifyInserted( self._createNewImageLane )
+        self.imageNameListSlot.notifyInserted( self._prepareForNewLane )
         self.imageNameListSlot.notifyRemove( self._removeImageLane )
         
         for applet in self.applets:
             applet.appletStateUpdateRequested.connect( self.handleAppletStateUpdateRequested )
-        
+    
+    def _prepareForNewLane(self, multislot, index, *args):
+        if not multislot.graph:
+            return
+        multislot.graph.call_when_setup_finished( lambda: self._createNewImageLane(multislot, index) )
+    
     def _createNewImageLane(self, multislot, index, *args):
         """
         A new image lane is being added to the workflow.  Add a new lane to each applet and hook it up.
