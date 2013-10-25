@@ -3,6 +3,7 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 
+import threading
 import numpy
 
 from ilastik.workflow import Workflow
@@ -178,6 +179,68 @@ class PixelClassificationWorkflow(Workflow):
         def propagateDirty(self, *args):
             pass # Nothing to do here.
 
+    class OpMultiImagePixelClassificationBatchPipeline(Operator):
+        Inputs = InputSlot(level=1)
+        
+        Scales = InputSlot()
+        FeatureIds = InputSlot()
+        SelectionMatrix = InputSlot()
+        
+        Classifier = InputSlot()
+        NumClasses = InputSlot()
+        
+        Outputs = OutputSlot(level=1)
+        
+        def __init__(self, pipeline_instance, *args, **kwargs):
+            cls = PixelClassificationWorkflow.OpMultiImagePixelClassificationBatchPipeline
+            super( cls, self ).__init__( *args, **kwargs )
+            self._pipeline = pipeline_instance
+            
+            self._selected_index = -1
+            self._lock = threading.Lock()
+            
+            self._pipeline.Scales.connect( self.Scales )
+            self._pipeline.FeatureIds.connect( self.FeatureIds )
+            self._pipeline.SelectionMatrix.connect( self.SelectionMatrix )
+            self._pipeline.Classifier.connect( self.Classifier )
+            self._pipeline.NumClasses.connect( self.NumClasses )
+
+        def setupOutputs(self):
+            if self._selected_index == -1:
+                # Find the first ready slot and connect it.
+                for index, slot in enumerate(self.Input):
+                    if slot.ready():
+                        self._selected_index = index
+                        break
+                assert self._selected_index != -1
+                self._pipeline.Input.disconnect()
+                self._pipeline.Input.connect( self.Inputs[self._selected_index] )
+
+            reference_outslot = self._pipeline.Output
+            reference_taggedshape = reference_outslot.meta.getTaggedShape()
+
+            self.Outputs.resize( self.Inputs )
+            for index, outslot in enumerate( self.Outputs ):
+                # We assume all slots have the same metadata except for shape
+                tagged_shape = self.Inputs[index].meta.getTaggedShape()
+                tagged_shape['c'] = reference_taggedshape['c']
+                outslot.meta.assignFrom( reference_outslot.meta )
+                outslot.meta.shape = tuple( tagged_shape.values() )
+
+        def execute(self, slot, subindex, roi, result):
+            image_index = subindex[0]
+            
+            # If necessary, hook up inner pipeline to the selected input
+            with self._lock:
+                self._selected_index = image_index
+                if self._selected_index != image_index:
+                    self._pipeline.Input.disconnect()
+                    self._pipeline.Input.connect( self.Inputs[image_index] )
+
+            # Simply forward the result from the inner pipeline
+            self._pipeline.Output(roi.start, roi.stop).writeInto( result ).wait()
+            return result
+
     def _initBatchWorkflow(self):
         """
         Connect the batch-mode top-level operators to the training workflow and to each other.
@@ -246,15 +309,18 @@ class PixelClassificationWorkflow(Workflow):
 #        opBatchResults.Input.connect( opBatchPredictionPipeline.HeadlessPredictionProbabilities )
 
         opSharedBatchPipeline = PixelClassificationWorkflow.OpPixelClassificationBatchPipeline( parent=self, filter_implementation=self.filter_implementation )
-        opBatchWrapper = SharedPipelineWrapper( opSharedBatchPipeline, \
-                                                ['Scales', 'FeatureIds', 'SelectionMatrix', 'Classifier', 'NumClasses' ],
-                                                parent=self )
+#        opBatchWrapper = SharedPipelineWrapper( opSharedBatchPipeline, \
+#                                                ['Scales', 'FeatureIds', 'SelectionMatrix', 'Classifier', 'NumClasses' ],
+#                                                parent=self )
+
+        opBatchWrapper = PixelClassificationWorkflow.OpMultiImagePixelClassificationBatchPipeline(
+                              opSharedBatchPipeline, parent=self )
 
         # Image input/output
         opBatchWrapper.Input.connect( opBatchInputs.Image )
         opBatchResults.Input.connect( opBatchWrapper.Output )
 
-        # Settings (copied from interactive pipeline
+        # Settings (copied from interactive pipeline)
         opBatchWrapper.Scales.connect( opTrainingFeatures.Scales )
         opBatchWrapper.FeatureIds.connect( opTrainingFeatures.FeatureIds )
         opBatchWrapper.SelectionMatrix.connect( opTrainingFeatures.SelectionMatrix )
