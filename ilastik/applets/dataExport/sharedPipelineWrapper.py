@@ -2,10 +2,12 @@ from lazyflow.graph import Operator, InputSlot
 
 class SharedPipelineWrapper(Operator):
     
-    SelectedIndex = InputSlot()
+    SelectedIndex = InputSlot(value=-1)
     
-    def __init__(self, parent, pipelineInstance, broadcastingSlotNames):
-        super( SharedPipelineWrapper, self ).__init__( parent=parent )
+    _InternalUseOnly = InputSlot(optional=True, level=1)
+    
+    def __init__(self, pipelineInstance, broadcastingSlotNames, *args, **kwargs):
+        super( SharedPipelineWrapper, self ).__init__( *args, **kwargs )
 
         self._pipelineInstance = pipelineInstance
         self._selected_index = -1
@@ -17,7 +19,8 @@ class SharedPipelineWrapper(Operator):
             level = innerSlot.level
             if innerSlot.name not in broadcastingSlotNames:
                 level += 1
-            outerSlot = innerSlot._getInstance(self, level=level)
+                optional = True
+            outerSlot = innerSlot._getInstance(self, level=level, optional=optional)
             self.inputs[outerSlot.name] = outerSlot
             setattr(self, outerSlot.name, outerSlot)
 
@@ -29,14 +32,22 @@ class SharedPipelineWrapper(Operator):
             outerSlot = innerSlot._getInstance(self, level=level)
             self.outputs[outerSlot.name] = outerSlot
             setattr(self, outerSlot.name, outerSlot)
+            
+            # This connection ensures that unconnected subslots are considered "unready" after setupOutputs()
+            #outerSlot.connect( self._InternalUseOnly)
 
-        broadcastingSlots = map( lambda slot: slot.name in broadcastingSlotNames,
-                                 self.inputs.values() )
-        self._indexedInputSlots = list( set(broadcastingSlots) - set(self.inputs.values()) )
+        broadcastingSlots = filter( lambda slot: slot.name in broadcastingSlotNames,
+                                    self.inputs.values() )
+
+        # Connect all broadcasting slots right now.        
+        for outerSlot in broadcastingSlots:
+            self._pipelineInstance.inputs[outerSlot.name].connect( outerSlot )
+        
+        self._indexedInputSlots = list( set(self.inputs.values()) - set(broadcastingSlots) - set([self.SelectedIndex, self._InternalUseOnly]) )
 
         # register callbacks for inserted and removed input subslots
         for s in self.inputs.values():
-            if s.name in self.promotedSlotNames:
+            if s.name not in broadcastingSlotNames:
                 s.notifyInserted(self._callbackInserted)
                 s.notifyRemove(self._callbackPreRemove)
                 s.notifyRemoved(self._callbackPostRemoved)
@@ -54,14 +65,22 @@ class SharedPipelineWrapper(Operator):
             assert len(s) == 0
 
     def _callbackInserted(self, slot, index, size):
-        pass
+        for innerSlot in self.outputs.values():
+            innerSlot.insertSlot( index, size )
+        for outerSlot in self._indexedInputSlots:
+            outerSlot.insertSlot( index, size )
+        self._InternalUseOnly.insertSlot( index, size )
 
     def _callbackPreRemove(self, slot, index, length):
         # TODO: If the currently selected slot is removed, switch to a different connection first.
         pass
 
     def _callbackPostRemoved(self, slot, index, size):
-        pass
+        for outerSlot in self.outputs.values():
+            outerSlot.removeSlot( index, size )
+        for outerSlot in self._indexedInputSlots:
+            outerSlot.removeSlot( index, size )
+        self._InternalUseOnly.removeSlot( index, size )
 
     def _callbackConnect(self, slot):
         pass
@@ -93,6 +112,11 @@ class SharedPipelineWrapper(Operator):
             innerSlot.connect( outerSlot[selected_index] )
         
         # TODO: For all unconnected outputs, provide default/fake metadata?
+        # Let's try that.
+        for outerSlot in self.outputs.values():
+            for index, slot in enumerate(outerSlot):
+                if index != selected_index:
+                    slot.meta.assignFrom( outerSlot[selected_index].meta )
 
     def execute(self, slot, subindex, roi, result):
         #this should never be called !!!

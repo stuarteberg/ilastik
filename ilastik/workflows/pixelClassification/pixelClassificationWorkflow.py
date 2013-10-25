@@ -16,8 +16,10 @@ from ilastik.applets.featureSelection.opFeatureSelection import OpFeatureSelecti
 from ilastik.applets.pixelClassification.opPixelClassification import OpPredictionPipeline
 
 from lazyflow.roi import TinyVector
-from lazyflow.graph import Graph, OperatorWrapper
+from lazyflow.graph import Graph, InputSlot, OutputSlot, Operator, OperatorWrapper
 from lazyflow.operators.generic import OpTransposeSlots, OpSelectSubslot
+
+from ilastik.applets.dataExport.sharedPipelineWrapper import SharedPipelineWrapper
 
 class PixelClassificationWorkflow(Workflow):
     
@@ -127,6 +129,55 @@ class PixelClassificationWorkflow(Workflow):
         opDataExport.RawDatasetInfo.connect( opData.DatasetGroup[0] )
         opDataExport.ConstraintDataset.connect( opData.ImageGroup[0] )
 
+    class OpPixelClassificationBatchPipeline(Operator):
+        Input = InputSlot()
+        
+        Scales = InputSlot()
+        FeatureIds = InputSlot()
+        SelectionMatrix = InputSlot()
+        
+        Classifier = InputSlot()
+        NumClasses = InputSlot()
+        
+        Output = OutputSlot()
+                
+        def __init__(self, parent, filter_implementation):
+            super( PixelClassificationWorkflow.OpPixelClassificationBatchPipeline, self ).__init__(parent)
+            
+            ## Create additional batch workflow operators
+            opBatchFeatures = OpFeatureSelection( parent=self, filter_implementation=filter_implementation )
+            opBatchFeatures.InputImage.connect( self.Input )
+            opBatchPredictionPipeline = OpPredictionPipeline( parent=self )
+
+            opBatchFeatures.Scales.connect( self.Scales )
+            opBatchFeatures.FeatureIds.connect( self.FeatureIds )
+            opBatchFeatures.SelectionMatrix.connect( self.SelectionMatrix )
+                
+            # Classifier and NumClasses are provided by the interactive workflow
+            opBatchPredictionPipeline.Classifier.connect( self.Classifier )
+            opBatchPredictionPipeline.FreezePredictions.setValue( False )
+            opBatchPredictionPipeline.NumClasses.connect( self.NumClasses )
+    
+            # Connect Image pathway:
+            # Input Image -> Features Op -> Prediction Op -> Export
+            opBatchFeatures.InputImage.connect( self.Input )
+            opBatchPredictionPipeline.FeatureImages.connect( opBatchFeatures.OutputImage )
+    
+            # We don't actually need the cached path in the batch pipeline.
+            # Just connect the uncached features here to satisfy the operator.
+            opBatchPredictionPipeline.CachedFeatureImages.connect( opBatchFeatures.OutputImage )
+
+            self.Output.connect( opBatchPredictionPipeline.HeadlessPredictionProbabilities )
+
+        def setupOutputs(self):
+            pass
+        
+        def execute(self, *args):
+            assert False, "Shouldn't get here"
+        
+        def propagateDirty(self, *args):
+            pass # Nothing to do here.
+
     def _initBatchWorkflow(self):
         """
         Connect the batch-mode top-level operators to the training workflow and to each other.
@@ -145,16 +196,12 @@ class PixelClassificationWorkflow(Workflow):
         opSelectFirstLane = OperatorWrapper( OpSelectSubslot, parent=self )
         opSelectFirstLane.Inputs.connect( opTrainingDataSelection.ImageGroup )
         opSelectFirstLane.SubslotIndex.setValue(0)
-        
+       
         opSelectFirstRole = OpSelectSubslot( parent=self )
         opSelectFirstRole.Inputs.connect( opSelectFirstLane.Output )
         opSelectFirstRole.SubslotIndex.setValue(0)
         
         opBatchResults.ConstraintDataset.connect( opSelectFirstRole.Output )
-        
-        ## Create additional batch workflow operators
-        opBatchFeatures = OperatorWrapper( OpFeatureSelection, operator_kwargs={'filter_implementation': self.filter_implementation}, parent=self, promotedSlotNames=['InputImage'] )
-        opBatchPredictionPipeline = OperatorWrapper( OpPredictionPipeline, parent=self )
         
         ## Connect Operators ##
         opTranspose = OpTransposeSlots( parent=self )
@@ -164,34 +211,55 @@ class PixelClassificationWorkflow(Workflow):
         # Provide dataset paths from data selection applet to the batch export applet
         opBatchResults.RawDatasetInfo.connect( opTranspose.Outputs[0] )
         opBatchResults.WorkingDirectory.connect( opBatchInputs.WorkingDirectory )
-        
-        # Connect (clone) the feature operator inputs from 
-        #  the interactive workflow's features operator (which gets them from the GUI)
-        opBatchFeatures.Scales.connect( opTrainingFeatures.Scales )
-        opBatchFeatures.FeatureIds.connect( opTrainingFeatures.FeatureIds )
-        opBatchFeatures.SelectionMatrix.connect( opTrainingFeatures.SelectionMatrix )
-        
-        # Classifier and NumClasses are provided by the interactive workflow
-        opBatchPredictionPipeline.Classifier.connect( opClassify.Classifier )
-        opBatchPredictionPipeline.FreezePredictions.setValue( False )
-        opBatchPredictionPipeline.NumClasses.connect( opClassify.NumClasses )
-        
+
         # Provide these for the gui
         opBatchResults.RawData.connect( opBatchInputs.Image )
         opBatchResults.PmapColors.connect( opClassify.PmapColors )
         opBatchResults.LabelNames.connect( opClassify.LabelNames )
-        
-        # Connect Image pathway:
-        # Input Image -> Features Op -> Prediction Op -> Export
-        opBatchFeatures.InputImage.connect( opBatchInputs.Image )
-        opBatchPredictionPipeline.FeatureImages.connect( opBatchFeatures.OutputImage )
-        opBatchResults.Input.connect( opBatchPredictionPipeline.HeadlessPredictionProbabilities )
 
-        # We don't actually need the cached path in the batch pipeline.
-        # Just connect the uncached features here to satisfy the operator.
-        opBatchPredictionPipeline.CachedFeatureImages.connect( opBatchFeatures.OutputImage )
+#        ## Create additional batch workflow operators
+#        opBatchFeatures = OperatorWrapper( OpFeatureSelection, operator_kwargs={'filter_implementation': self.filter_implementation}, parent=self, promotedSlotNames=['InputImage'] )
+#        opBatchPredictionPipeline = OperatorWrapper( OpPredictionPipeline, parent=self )
+#        
+#        # Connect (clone) the feature operator inputs from 
+#        #  the interactive workflow's features operator (which gets them from the GUI)
+#        opBatchFeatures.Scales.connect( opTrainingFeatures.Scales )
+#        opBatchFeatures.FeatureIds.connect( opTrainingFeatures.FeatureIds )
+#        opBatchFeatures.SelectionMatrix.connect( opTrainingFeatures.SelectionMatrix )
+#        
+#        # Classifier and NumClasses are provided by the interactive workflow
+#        opBatchPredictionPipeline.Classifier.connect( opClassify.Classifier )
+#        opBatchPredictionPipeline.FreezePredictions.setValue( False )
+#        opBatchPredictionPipeline.NumClasses.connect( opClassify.NumClasses )
+#
+#        # We don't actually need the cached path in the batch pipeline.
+#        # Just connect the uncached features here to satisfy the operator.
+#        opBatchPredictionPipeline.CachedFeatureImages.connect( opBatchFeatures.OutputImage )        
+#
+#        # For headless mode.
+#        self.opBatchPredictionPipeline = opBatchPredictionPipeline
+#
+#        # Connect Image pathway:
+#        # Input Image -> Features Op -> Prediction Op -> Export
+#        opBatchFeatures.InputImage.connect( opBatchInputs.Image )
+#        opBatchPredictionPipeline.FeatureImages.connect( opBatchFeatures.OutputImage )
+#        opBatchResults.Input.connect( opBatchPredictionPipeline.HeadlessPredictionProbabilities )
 
-        self.opBatchPredictionPipeline = opBatchPredictionPipeline
+        opSharedBatchPipeline = PixelClassificationWorkflow.OpPixelClassificationBatchPipeline( parent=self, filter_implementation=self.filter_implementation )
+        opBatchWrapper = SharedPipelineWrapper( opSharedBatchPipeline, \
+                                                ['Scales', 'FeatureIds', 'SelectionMatrix', 'Classifier', 'NumClasses' ],
+                                                parent=self )
+
+        # Image input/output
+        opBatchWrapper.Input.connect( opBatchInputs.Image )
+        opBatchResults.Input.connect( opBatchWrapper.Output )
+
+        # Settings (copied from interactive pipeline
+        opBatchWrapper.Scales.connect( opTrainingFeatures.Scales )
+        opBatchWrapper.FeatureIds.connect( opTrainingFeatures.FeatureIds )
+        opBatchWrapper.SelectionMatrix.connect( opTrainingFeatures.SelectionMatrix )
+        opBatchWrapper.Classifier.connect( opClassify.Classifier )
+        opBatchWrapper.NumClasses.connect( opClassify.NumClasses )
 
     def handleAppletStateUpdateRequested(self):
         """
@@ -241,19 +309,19 @@ class PixelClassificationWorkflow(Workflow):
         busy |= self.dataExportApplet.busy
         self._shell.enableProjectChanges( not busy )
 
-    def getHeadlessOutputSlot(self, slotId):
-        # "Regular" (i.e. with the images that the user selected as input data)
-        if slotId == "Predictions":
-            return self.pcApplet.topLevelOperator.HeadlessPredictionProbabilities
-        elif slotId == "PredictionsUint8":
-            return self.pcApplet.topLevelOperator.HeadlessUint8PredictionProbabilities
-        # "Batch" (i.e. with the images that the user selected as batch inputs).
-        elif slotId == "BatchPredictions":
-            return self.opBatchPredictionPipeline.HeadlessPredictionProbabilities
-        if slotId == "BatchPredictionsUint8":
-            return self.opBatchPredictionPipeline.HeadlessUint8PredictionProbabilities
-        
-        raise Exception("Unknown headless output slot")
+#    def getHeadlessOutputSlot(self, slotId):
+#        # "Regular" (i.e. with the images that the user selected as input data)
+#        if slotId == "Predictions":
+#            return self.pcApplet.topLevelOperator.HeadlessPredictionProbabilities
+#        elif slotId == "PredictionsUint8":
+#            return self.pcApplet.topLevelOperator.HeadlessUint8PredictionProbabilities
+#        # "Batch" (i.e. with the images that the user selected as batch inputs).
+#        elif slotId == "BatchPredictions":
+#            return self.opBatchPredictionPipeline.HeadlessPredictionProbabilities
+#        if slotId == "BatchPredictionsUint8":
+#            return self.opBatchPredictionPipeline.HeadlessUint8PredictionProbabilities
+#        
+#        raise Exception("Unknown headless output slot")
     
     def onProjectLoaded(self, projectManager):
         """
