@@ -264,6 +264,9 @@ class PixelClassificationWorkflow(Workflow):
         the workflow for batch mode and export all results.
         (This workflow's headless mode supports only batch mode for now.)
         """
+        # Now that the project is loaded, let's look at timing for the batch mode only...
+        self.graph.enable_timing = True
+
         # Configure the batch data selection operator.
         if self._batch_input_args and self._batch_input_args.input_files: 
             self.batchInputApplet.configure_operator_with_parsed_args( self._batch_input_args )
@@ -273,6 +276,14 @@ class PixelClassificationWorkflow(Workflow):
             self.batchResultsApplet.configure_operator_with_parsed_args( self._batch_export_args )
 
         if self._headless and self._batch_input_args and self._batch_export_args:
+            # DEBUG: Export a workflow diagram now.
+            import lazyflow.tools.schematic
+            sys.stdout.write("Exporting a workflow diagram...")
+            sys.stdout.flush()
+            svgPath = '/Users/bergs/Documents/svgfiles/setup_counts/headless/headless_workflow.svg'
+            lazyflow.tools.schematic.generateSvgFileForOperator(svgPath, self, detail=100)            
+            sys.stdout.write(" Done.\n")
+            sys.stdout.flush()
             
             # Make sure we're using the up-to-date classifier.
             self.pcApplet.topLevelOperator.FreezePredictions.setValue(False)

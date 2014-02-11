@@ -141,15 +141,24 @@ class Workflow( Operator ):
         """
         A new image lane is being added to the workflow.  Add a new lane to each applet and hook it up.
         """
-        for a in self.applets:
-            if a.syncWithImageIndex and a.topLevelOperator is not None:
-                a.topLevelOperator.addLane(index)
-        
-        self.connectLane(index)
+        from lazyflow.utility import Timer
 
-        if not self._headless:
-            for a in self.applets:
-                a.getMultiLaneGui().imageLaneAdded(index)
+        with Timer() as lane_timer:
+            for applet_index, a in enumerate(self.applets):
+                if a.syncWithImageIndex and a.topLevelOperator is not None:
+                    with Timer() as applet_timer:
+                        a.topLevelOperator.addLane(index)
+                    print "    Adding lane {} to applet {} took {:.3f} seconds"\
+                          "".format( index, applet_index, applet_timer.seconds() )
+
+            with Timer() as connection_timer:
+                self.connectLane(index)
+            print "  Connecting lane {} took {:.3f} seconds".format( index, connection_timer.seconds() )
+    
+            if not self._headless:
+                for a in self.applets:
+                    a.getMultiLaneGui().imageLaneAdded(index)
+        print "Setup of lane {} took a total of {:.3f} seconds".format( index, lane_timer.seconds() )
     
     def _removeImageLane(self, multislot, index, finalLength):
         """
