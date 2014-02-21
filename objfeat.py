@@ -105,18 +105,29 @@ class ObjectFeatureSelectionWidget(QWidget):
         self.treeWidget = None
         self.label      = None
         self.item2id    = {}
+        self.help       = QTextBrowser(self)
 
         self.treeWidget = QTreeWidget()
+        self.treeWidget.header().close()
         pluginRoot = QTreeWidgetItem()
         pluginRoot.setText(0, "the plugin")
         self.treeWidget.insertTopLevelItem(0, pluginRoot)
         self.label = QLabel(self)
         self.label.setText(self.msg_NoFeatureSelected)
         
-        h = QVBoxLayout()
-        h.addWidget(self.treeWidget)
-        h.addWidget(self.label)
-        self.setLayout(h)
+        v = QVBoxLayout()
+        v.addWidget(self.treeWidget)
+        v.addWidget(self.label)
+        
+        h = QSplitter(self)
+        w = QWidget(self)
+        w.setLayout(v)
+        h.addWidget(w)
+        h.addWidget(self.help)
+        
+        v2 = QHBoxLayout()
+        v2.addWidget(h)
+        self.setLayout(v2)
         
         for k,vv in grouped.iteritems():
             if k == "unused":
@@ -134,6 +145,20 @@ class ObjectFeatureSelectionWidget(QWidget):
         
         pluginRoot.setExpanded(True)
         self.treeWidget.itemChanged.connect(self.handle)
+        self.treeWidget.itemSelectionChanged.connect(self.handleSelectionChanged)
+
+    def handleSelectionChanged(self):
+        sel = self.treeWidget.selectedItems()
+        assert len(sel) <= 1
+        if not len(sel):
+            return
+        
+        sel = sel[0]
+        info = r[self.item2id[sel]]
+        self.help.setText("<h2>%s</h2><p>vigra function: <tt>%s</tt></p><p>#channels: %d</p>" \
+            % (info.humanName, self.item2id[sel], info.size2D))
+        
+        
 
     def handleChecked(self, checked, item, column):
         print self.item2id[item], checked
@@ -160,6 +185,14 @@ class ObjectFeatureSelectionWidget(QWidget):
         elif item.checkState(column) == Qt.Unchecked:
             self.handleChecked(False, item, column)
         self.treeWidget.blockSignals(False)
+        
+    def selectedFeatures(self):
+        sel = []
+        for item, vigraName in self.item2id.iteritems():
+            if not item.checkState(0) == Qt.Checked:
+                continue
+            sel.append(vigraName)
+        return sorted(sel)
            
 t = ObjectFeatureSelectionWidget()
 t.show()
