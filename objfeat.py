@@ -64,15 +64,15 @@ r = { \
 "Weighted<Coord<Principal<PowerSum<4> > > >"                 : ObjectFeatureInfo("",0, "unused"),
 "Weighted<Coord<Principal<Skewness > > >"                    : ObjectFeatureInfo("",0, "unused"),
 "Weighted<PowerSum<0> >"                                     : ObjectFeatureInfo("",0, "unused"),
-"Principal<Maximum >": ObjectFeatureInfo("",0, "unused"),
-"Principal<Kurtosis >": ObjectFeatureInfo("",0, "unused"),
-"Principal<Minimum >": ObjectFeatureInfo("",0, "unused"),
-"Principal<PowerSum<2> >": ObjectFeatureInfo("",0, "unused"),
-"Principal<PowerSum<3> >": ObjectFeatureInfo("",0, "unused"),
-"Principal<PowerSum<4> >": ObjectFeatureInfo("",0, "unused"),
-"Principal<Skewness >": ObjectFeatureInfo("",0, "unused"),
-"Principal<Variance>": ObjectFeatureInfo("",0, "unused"),
-"PrincipalAxes": ObjectFeatureInfo("",0, "unused"),
+"Principal<Maximum >"                                        :  ObjectFeatureInfo("",0, "unused"),
+"Principal<Kurtosis >"                                       : ObjectFeatureInfo("",0, "unused"),
+"Principal<Minimum >"                                        : ObjectFeatureInfo("",0, "unused"),
+"Principal<PowerSum<2> >"                                    : ObjectFeatureInfo("",0, "unused"),
+"Principal<PowerSum<3> >"                                    : ObjectFeatureInfo("",0, "unused"),
+"Principal<PowerSum<4> >"                                    : ObjectFeatureInfo("",0, "unused"),
+"Principal<Skewness >"                                       : ObjectFeatureInfo("",0, "unused"),
+"Principal<Variance>"                                        : ObjectFeatureInfo("",0, "unused"),
+"PrincipalAxes"                                              : ObjectFeatureInfo("",0, "unused"),
 }
 
 import vigra, numpy
@@ -121,7 +121,9 @@ def testObjectFeatureDefinitions():
                 print "*** %s ***" % k
                 for v in vv:
                     print "    %s" % r[v].humanName
-            
+   
+testObjectFeatureDefinitions()
+   
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 app = QApplication([])
