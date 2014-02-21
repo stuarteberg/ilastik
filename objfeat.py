@@ -190,7 +190,8 @@ class ObjectFeatureSelectionWidget(QWidget):
     def handleSelectionChanged(self):
         sel = self.treeWidget.selectedItems()
         assert len(sel) <= 1
-        if not len(sel):
+        if not len(sel) or sel[0] not in self.item2id:
+            self.help.setText("")
             return
         
         sel = sel[0]
