@@ -93,37 +93,74 @@ for shape in shapes:
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 app = QApplication([])
-t = QTreeWidget()
 
-pluginRoot = QTreeWidgetItem()
-pluginRoot.setText(0, "the plugin")
-t.insertTopLevelItem(0, pluginRoot)
-pluginRoot.setExpanded(True)
-
-def handleChecked(checked, item, column):
-    print item, checked
-def handle(item, column):
-    t.blockSignals(True)
-    if item.checkState(column) == Qt.Checked:
-        handleChecked(True, item, column)
-    elif item.checkState(column) == Qt.Unchecked:
-        handleChecked(False, item, column)
-    t.blockSignals(False)
+class ObjectFeatureSelectionWidget(QWidget):
     
-t.itemChanged.connect(handle)
-
-for k,vv in grouped.iteritems():
-    if k == "unused":
-        continue
-    groupRoot = QTreeWidgetItem()
-    groupRoot.setText(0, k)
-    pluginRoot.addChild(groupRoot)
-    groupRoot.setExpanded(True)
-    for v in vv:
-        child = QTreeWidgetItem()
-        child.setText(0, r[v].humanName)
-        groupRoot.addChild(child)
-        child.setCheckState(0, Qt.Unchecked)
+    msg_NoFeatureSelected = "No feature selected"
+    msg_FeaturesSelected  = "%d features selected, %d channels in total"
+    
+    def __init__(self, parent=None):
+        super(ObjectFeatureSelectionWidget, self).__init__(parent)
         
+        self.treeWidget = None
+        self.label      = None
+        self.item2id    = {}
+
+        self.treeWidget = QTreeWidget()
+        pluginRoot = QTreeWidgetItem()
+        pluginRoot.setText(0, "the plugin")
+        self.treeWidget.insertTopLevelItem(0, pluginRoot)
+        self.label = QLabel(self)
+        self.label.setText(self.msg_NoFeatureSelected)
+        
+        h = QVBoxLayout()
+        h.addWidget(self.treeWidget)
+        h.addWidget(self.label)
+        self.setLayout(h)
+        
+        for k,vv in grouped.iteritems():
+            if k == "unused":
+                continue
+            groupRoot = QTreeWidgetItem()
+            groupRoot.setText(0, k)
+            pluginRoot.addChild(groupRoot)
+            groupRoot.setExpanded(True)
+            for v in vv:
+                child = QTreeWidgetItem()
+                child.setText(0, r[v].humanName)
+                self.item2id[child] = v
+                groupRoot.addChild(child)
+                child.setCheckState(0, Qt.Unchecked)
+        
+        pluginRoot.setExpanded(True)
+        self.treeWidget.itemChanged.connect(self.handle)
+
+    def handleChecked(self, checked, item, column):
+        print self.item2id[item], checked
+        
+        vigraName = self.item2id[item]
+      
+        nCh = 0
+        nFeat = 0
+        for item, vigraName in self.item2id.iteritems():
+            if not item.checkState(0) == Qt.Checked:
+                continue
+            nCh += r[vigraName].size2D
+            nFeat += 1
+            
+        if nFeat == 0:
+            self.label.setText(self.msg_NoFeatureSelected)
+        else:
+            self.label.setText(self.msg_FeaturesSelected % (nFeat, nCh))
+    
+    def handle(self, item, column):
+        self.treeWidget.blockSignals(True)
+        if item.checkState(column) == Qt.Checked:
+            self.handleChecked(True, item, column)
+        elif item.checkState(column) == Qt.Unchecked:
+            self.handleChecked(False, item, column)
+        self.treeWidget.blockSignals(False)
+           
+t = ObjectFeatureSelectionWidget()
 t.show()
 app.exec_()
