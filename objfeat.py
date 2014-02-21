@@ -24,58 +24,156 @@ class ObjectFeatureInfo(object):
             raise RuntimeError("not implemented")
         
 
-r = { \
-"Coord<ArgMaxWeight >"                                       : ObjectFeatureInfo("Coordinate of pixel with maximal intensity" ,"coor",   "coordinates"),
-"Coord<ArgMinWeight >"                                       : ObjectFeatureInfo("Coordinate of pixel with minimal intensity" ,"coor",   "coordinates"),
-"Coord<Maximum >"                                            : ObjectFeatureInfo("Lower right coordinate of bounding box"     ,"coor",   "coordinates"),
-"Coord<Minimum >"                                            : ObjectFeatureInfo("Upper left coordinate of bounding box"      ,"coor",   "coordinates"),
-"Count"                                                      : ObjectFeatureInfo("Pixel count"                                ,1,   "shape"),
-"Global<Maximum >"                                           : ObjectFeatureInfo("Maximal intensity (search entire image)"    ,1,   "global"),
-"Global<Minimum >"                                           : ObjectFeatureInfo("Minimal intensity (search entire image)"    ,1,   "global"),
-"Histogram"                                                  : ObjectFeatureInfo("Intensity Histogram"                        ,64,   "intensity"),
-"Kurtosis"                                                   : ObjectFeatureInfo("Kurtosis (4th moment) of intensities"       ,1,   "intensity"),
-"Maximum"                                                    : ObjectFeatureInfo("Maximal intensity"                          ,"ch",   "intensity"),
-"Minimum"                                                    : ObjectFeatureInfo("Minimal intensity"                          ,"ch",   "intensity"),
-"Mean"                                                       : ObjectFeatureInfo("Mean intensity"                             ,"ch",   "intensity"),
-"Quantiles"                                                  : ObjectFeatureInfo("Quantiles (0%, 10%, 25%, 50%, 75%, 90%, 100%) of intensities", 7, "intensity"),
-"RegionAxes"                                                 : ObjectFeatureInfo("Eigenvectors from PCA (each pixel has unit mass)", "coor2", "shape",),
-"RegionCenter"                                               : ObjectFeatureInfo("Center of mass (each pixel has unit mass)", "coor", "coordinates"),
-"RegionRadii"                                                : ObjectFeatureInfo("Eigenvalues from PCA (each pixel has unit mass)", "coor", "shape"),
-"Skewness"                                                   : ObjectFeatureInfo("Skewness (3rd moment) of intensities", "ch", "intensity"),
-"Sum"                                                        : ObjectFeatureInfo("Sum of pixel intensities", "ch", "intensity"),
-"Variance"                                                   : ObjectFeatureInfo("Variance (2nd moment) of intensities", "ch", "intensity"),
-"Covariance"                                                 : ObjectFeatureInfo("Covariance", "ch2", "intensity"),
-"Weighted<RegionAxes>"                                       : ObjectFeatureInfo("Eigenvectors from PCA (each pixel has mass according to intensity)", "coor2", "shape"),
-"Weighted<RegionCenter>"                                     : ObjectFeatureInfo("Center of mass (each pixel has mass according to its intensity)", "coor", "shape"),
-"Weighted<RegionRadii>"                                      : ObjectFeatureInfo("Eigenvalues from PCA (each pixel has mass according to intensity)", "coor", "shape"),
-"Central<PowerSum<2> >"                                      : ObjectFeatureInfo("","ch", "unused"),
-"Central<PowerSum<3> >"                                      : ObjectFeatureInfo("","ch", "unused"),
-"Central<PowerSum<4> >"                                      : ObjectFeatureInfo("","ch", "unused"),
-"Coord<DivideByCount<Principal<PowerSum<2> > > >"            : ObjectFeatureInfo("","coor", "unused"),
-"Coord<PowerSum<1> >"                                        : ObjectFeatureInfo("","coor", "unused"),
-"Coord<Principal<Kurtosis > >"                               : ObjectFeatureInfo("","coor", "unused"),
-"Coord<Principal<PowerSum<2> > >"                            : ObjectFeatureInfo("","coor", "unused"),
-"Coord<Principal<PowerSum<3> > >"                            : ObjectFeatureInfo("","coor", "unused"),
-"Coord<Principal<PowerSum<4> > >"                            : ObjectFeatureInfo("","coor", "unused"),
-"Coord<Principal<Skewness > >"                               : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<Coord<DivideByCount<Principal<PowerSum<2> > > > >" : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<Coord<PowerSum<1> > >"                             : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<Coord<Principal<Kurtosis > > >"                    : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<Coord<Principal<PowerSum<2> > > >"                 : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<Coord<Principal<PowerSum<3> > > >"                 : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<Coord<Principal<PowerSum<4> > > >"                 : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<Coord<Principal<Skewness > > >"                    : ObjectFeatureInfo("","coor", "unused"),
-"Weighted<PowerSum<0> >"                                     : ObjectFeatureInfo("","ch", "unused"),
-"Principal<Maximum >"                                        :  ObjectFeatureInfo("","ch", "unused"),
-"Principal<Kurtosis >"                                       : ObjectFeatureInfo("","ch", "unused"),
-"Principal<Minimum >"                                        : ObjectFeatureInfo("","ch", "unused"),
-"Principal<PowerSum<2> >"                                    : ObjectFeatureInfo("","ch", "unused"),
-"Principal<PowerSum<3> >"                                    : ObjectFeatureInfo("","ch", "unused"),
-"Principal<PowerSum<4> >"                                    : ObjectFeatureInfo("","ch", "unused"),
-"Principal<Skewness >"                                       : ObjectFeatureInfo("","ch", "unused"),
-"Principal<Variance>"                                        : ObjectFeatureInfo("","ch", "unused"),
-"PrincipalAxes"                                              : ObjectFeatureInfo("","ch2", "unused"),
-}
+r = {}
+i = ObjectFeatureInfo("Coordinate of pixel with maximal intensity" ,"coor",   "coordinates")
+r["Coord<ArgMaxWeight >"] = i
+
+o = ObjectFeatureInfo("Coordinate of pixel with minimal intensity" ,"coor",   "coordinates")
+r["Coord<ArgMinWeight >"] = i
+
+o = ObjectFeatureInfo("Lower right coordinate of bounding box"     ,"coor",   "coordinates")
+r["Coord<Maximum >"] = o
+
+o = ObjectFeatureInfo("Upper left coordinate of bounding box"      ,"coor",   "coordinates")  
+r["Coord<Minimum >"] = o
+ 
+o = ObjectFeatureInfo("Pixel count" ,1,   "shape")
+r["Count"] = o
+  
+o= ObjectFeatureInfo("Maximal intensity (search entire image)",1,   "global")
+r["Global<Maximum >"] = o
+  
+o= ObjectFeatureInfo("Minimal intensity (search entire image)",1,   "global")
+r["Global<Minimum >"] = o 
+  
+o= ObjectFeatureInfo("Intensity Histogram",64,   "intensity")
+r["Histogram"] = o
+  
+o= ObjectFeatureInfo("Kurtosis (4th moment) of intensities",1,   "intensity")
+r["Kurtosis"] = o 
+  
+o= ObjectFeatureInfo("Maximal intensity","ch",   "intensity")
+r["Maximum"] = o 
+  
+o= ObjectFeatureInfo("Minimal intensity" ,"ch",   "intensity")
+r["Minimum"] = o 
+
+o= ObjectFeatureInfo("Mean intensity" ,"ch",   "intensity")  
+r["Mean"] = o
+    
+o= ObjectFeatureInfo("Quantiles (0%, 10%, 25%, 50%, 75%, 90%, 100%) of intensities", 7, "intensity")
+r["Quantiles"] = o                                                  
+    
+o=  ObjectFeatureInfo("Eigenvectors from PCA (each pixel has unit mass)", "coor2", "shape",)
+r["RegionAxes"] = o
+    
+o= ObjectFeatureInfo("Center of mass (each pixel has unit mass)", "coor", "coordinates")
+r["RegionCenter"] = o 
+
+o= ObjectFeatureInfo("Eigenvalues from PCA (each pixel has unit mass)", "coor", "shape")
+r["RegionRadii"] = o 
+
+o= ObjectFeatureInfo("Skewness (3rd moment) of intensities", "ch", "intensity")
+r["Skewness"] = o 
+
+o= ObjectFeatureInfo("Sum of pixel intensities", "ch", "intensity")
+r["Sum"] = o
+
+o= ObjectFeatureInfo("Variance (2nd moment) of intensities", "ch", "intensity")
+r["Variance"] = o                                                   
+
+o= ObjectFeatureInfo("Covariance", "ch2", "intensity")
+r["Covariance"] = o                                                
+
+o= ObjectFeatureInfo("Eigenvectors from PCA (each pixel has mass according to intensity)", "coor2", "shape")
+r["Weighted<RegionAxes>"] = o                                      
+
+o= ObjectFeatureInfo("Center of mass (each pixel has mass according to its intensity)", "coor", "shape")
+r["Weighted<RegionCenter>"] = o                                     
+
+o= ObjectFeatureInfo("Eigenvalues from PCA (each pixel has mass according to intensity)", "coor", "shape")
+r["Weighted<RegionRadii>"] = o                                      
+
+o= ObjectFeatureInfo("","ch", "unused")
+r["Central<PowerSum<2> >"] = o                                      
+
+o= ObjectFeatureInfo("","ch", "unused")
+r["Central<PowerSum<3> >"] = o                                      
+
+o= ObjectFeatureInfo("","ch", "unused")
+r["Central<PowerSum<4> >"] = o                           
+
+o= ObjectFeatureInfo("","coor", "unused")
+r["Coord<DivideByCount<Principal<PowerSum<2> > > >"] = o 
+
+o= ObjectFeatureInfo("","coor", "unused")
+r["Coord<PowerSum<1> >"] = o   
+
+o= ObjectFeatureInfo("","coor", "unused")
+r["Coord<Principal<Kurtosis > >"] = o
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Coord<Principal<PowerSum<2> > >"] = o                          
+
+o= ObjectFeatureInfo("","coor", "unused")
+r["Coord<Principal<PowerSum<3> > >"] = o 
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Coord<Principal<PowerSum<4> > >"] = o  
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Coord<Principal<Skewness > >"] = o    
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Weighted<Coord<DivideByCount<Principal<PowerSum<2> > > > >"] = o 
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Weighted<Coord<PowerSum<1> > >"] = o                            
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Weighted<Coord<Principal<Kurtosis > > >"] = o
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Weighted<Coord<Principal<PowerSum<2> > > >"] = o  
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Weighted<Coord<Principal<PowerSum<3> > > >"] = o 
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Weighted<Coord<Principal<PowerSum<4> > > >"] = o 
+
+o=  ObjectFeatureInfo("","coor", "unused")
+r["Weighted<Coord<Principal<Skewness > > >"] = o
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Weighted<PowerSum<0> >"] = o            
+
+o=   ObjectFeatureInfo("","ch", "unused")
+r["Principal<Maximum >"] = o            
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Principal<Kurtosis >"] = o      
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Principal<Minimum >"] = o    
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Principal<PowerSum<2> >"] = o       
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Principal<PowerSum<3> >"] = o  
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Principal<PowerSum<4> >"] = o  
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Principal<Skewness >"] = o   
+
+o=  ObjectFeatureInfo("","ch", "unused")
+r["Principal<Variance>"] = o  
+
+o=  ObjectFeatureInfo("","ch2", "unused")
+r["PrincipalAxes"] = o                                           
 
 import vigra, numpy
 
