@@ -39,11 +39,11 @@ def getVigraObjectFeatureInfos():
     o.meaning = "position of the point with minimum intensity"
     r["Coord<ArgMinWeight >"] = o
 
-    o = ObjectFeatureInfo("Lower right coordinate of bounding box"     ,"coor",   "coordinates")
+    o = ObjectFeatureInfo("Lower right coordinate of bounding box" ,"coor",   "coordinates")
     o.meaning = "upper bound of the regions bounding box"
     r["Coord<Maximum >"] = o
 
-    o = ObjectFeatureInfo("Upper left coordinate of bounding box"      ,"coor",   "coordinates")  
+    o = ObjectFeatureInfo("Upper left coordinate of bounding box" ,"coor",   "coordinates")  
     o.meaning = "lower bound of the regions bounding box"
     r["Coord<Minimum >"] = o
     
@@ -51,11 +51,11 @@ def getVigraObjectFeatureInfos():
     o.meaning = "size of the region (number of pixels)"
     r["Count"] = o
     
-    o= ObjectFeatureInfo("Maximal intensity (search entire image)",1,   "global")
+    o= ObjectFeatureInfo("Maximal intensity (search entire image)", 1, "global")
     o.meaning = "TODO"
     r["Global<Maximum >"] = o
     
-    o= ObjectFeatureInfo("Minimal intensity (search entire image)",1,   "global")
+    o= ObjectFeatureInfo("Minimal intensity (search entire image)", 1, "global")
     o.meaning = "TODO"
     r["Global<Minimum >"] = o 
     
@@ -63,19 +63,19 @@ def getVigraObjectFeatureInfos():
     o.meaning = "TODO"
     r["Histogram"] = o
     
-    o= ObjectFeatureInfo("Kurtosis (4th moment) of intensities",1,   "intensity")
+    o= ObjectFeatureInfo("Kurtosis (4th moment) of intensities", 1, "intensity")
     o.meaning = "intensity kurtosis (computed per channel)"
     r["Kurtosis"] = o 
     
-    o= ObjectFeatureInfo("Maximal intensity","ch",   "intensity")
+    o= ObjectFeatureInfo("Maximal intensity","ch", "intensity")
     o.meaning = "maximum intensity (computed per channel)"
     r["Maximum"] = o 
     
-    o= ObjectFeatureInfo("Minimal intensity" ,"ch",   "intensity")
+    o= ObjectFeatureInfo("Minimal intensity" ,"ch", "intensity")
     o.meaning = "minimum intensity (computed per channel)"
     r["Minimum"] = o 
 
-    o= ObjectFeatureInfo("Mean intensity" ,"ch",   "intensity")  
+    o= ObjectFeatureInfo("Mean intensity" ,"ch", "intensity")  
     o.meaning = "mean intensity (computed per channel)"
     r["Mean"] = o
         
