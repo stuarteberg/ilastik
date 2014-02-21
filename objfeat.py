@@ -22,7 +22,8 @@ class ObjectFeatureInfo(object):
             return ch*ch
         else:
             raise RuntimeError("not implemented")
-        
+
+# Build object feature info dictionary        
 
 r = {}
 i = ObjectFeatureInfo("Coordinate of pixel with maximal intensity" ,"coor",   "coordinates")
@@ -175,6 +176,8 @@ r["Principal<Variance>"] = o
 o=  ObjectFeatureInfo("","ch2", "unused")
 r["PrincipalAxes"] = o                                           
 
+#-----------------------------------------------------------------------------
+
 import vigra, numpy
 
 def testObjectFeatureDefinitions():
@@ -226,6 +229,8 @@ def testObjectFeatureDefinitions():
                     print "    %s" % r[v].humanName
    
 testObjectFeatureDefinitions()
+   
+#-----------------------------------------------------------------------------
    
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
