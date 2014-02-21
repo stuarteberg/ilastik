@@ -20,6 +20,8 @@ class ObjectFeatureInfo(object):
             return ch
         elif self._size == "ch2":
             return ch*ch
+        else:
+            raise RuntimeError("not implemented")
         
 
 r = { \
@@ -46,33 +48,33 @@ r = { \
 "Weighted<RegionAxes>"                                       : ObjectFeatureInfo("Eigenvectors from PCA (each pixel has mass according to intensity)", "coor2", "shape"),
 "Weighted<RegionCenter>"                                     : ObjectFeatureInfo("Center of mass (each pixel has mass according to its intensity)", "coor", "shape"),
 "Weighted<RegionRadii>"                                      : ObjectFeatureInfo("Eigenvalues from PCA (each pixel has mass according to intensity)", "coor", "shape"),
-"Central<PowerSum<2> >"                                      : ObjectFeatureInfo("",0, "unused"),
-"Central<PowerSum<3> >"                                      : ObjectFeatureInfo("",0, "unused"),
-"Central<PowerSum<4> >"                                      : ObjectFeatureInfo("",0, "unused"),
-"Coord<DivideByCount<Principal<PowerSum<2> > > >"            : ObjectFeatureInfo("",0, "unused"),
-"Coord<PowerSum<1> >"                                        : ObjectFeatureInfo("",0, "unused"),
-"Coord<Principal<Kurtosis > >"                               : ObjectFeatureInfo("",0, "unused"),
-"Coord<Principal<PowerSum<2> > >"                            : ObjectFeatureInfo("",0, "unused"),
-"Coord<Principal<PowerSum<3> > >"                            : ObjectFeatureInfo("",0, "unused"),
-"Coord<Principal<PowerSum<4> > >"                            : ObjectFeatureInfo("",0, "unused"),
-"Coord<Principal<Skewness > >"                               : ObjectFeatureInfo("",0, "unused"),
-"Weighted<Coord<DivideByCount<Principal<PowerSum<2> > > > >" : ObjectFeatureInfo("",0, "unused"),
-"Weighted<Coord<PowerSum<1> > >"                             : ObjectFeatureInfo("",0, "unused"),
-"Weighted<Coord<Principal<Kurtosis > > >"                    : ObjectFeatureInfo("",0, "unused"),
-"Weighted<Coord<Principal<PowerSum<2> > > >"                 : ObjectFeatureInfo("",0, "unused"),
-"Weighted<Coord<Principal<PowerSum<3> > > >"                 : ObjectFeatureInfo("",0, "unused"),
-"Weighted<Coord<Principal<PowerSum<4> > > >"                 : ObjectFeatureInfo("",0, "unused"),
-"Weighted<Coord<Principal<Skewness > > >"                    : ObjectFeatureInfo("",0, "unused"),
-"Weighted<PowerSum<0> >"                                     : ObjectFeatureInfo("",0, "unused"),
-"Principal<Maximum >"                                        :  ObjectFeatureInfo("",0, "unused"),
-"Principal<Kurtosis >"                                       : ObjectFeatureInfo("",0, "unused"),
-"Principal<Minimum >"                                        : ObjectFeatureInfo("",0, "unused"),
-"Principal<PowerSum<2> >"                                    : ObjectFeatureInfo("",0, "unused"),
-"Principal<PowerSum<3> >"                                    : ObjectFeatureInfo("",0, "unused"),
-"Principal<PowerSum<4> >"                                    : ObjectFeatureInfo("",0, "unused"),
-"Principal<Skewness >"                                       : ObjectFeatureInfo("",0, "unused"),
-"Principal<Variance>"                                        : ObjectFeatureInfo("",0, "unused"),
-"PrincipalAxes"                                              : ObjectFeatureInfo("",0, "unused"),
+"Central<PowerSum<2> >"                                      : ObjectFeatureInfo("","ch", "unused"),
+"Central<PowerSum<3> >"                                      : ObjectFeatureInfo("","ch", "unused"),
+"Central<PowerSum<4> >"                                      : ObjectFeatureInfo("","ch", "unused"),
+"Coord<DivideByCount<Principal<PowerSum<2> > > >"            : ObjectFeatureInfo("","coor", "unused"),
+"Coord<PowerSum<1> >"                                        : ObjectFeatureInfo("","coor", "unused"),
+"Coord<Principal<Kurtosis > >"                               : ObjectFeatureInfo("","coor", "unused"),
+"Coord<Principal<PowerSum<2> > >"                            : ObjectFeatureInfo("","coor", "unused"),
+"Coord<Principal<PowerSum<3> > >"                            : ObjectFeatureInfo("","coor", "unused"),
+"Coord<Principal<PowerSum<4> > >"                            : ObjectFeatureInfo("","coor", "unused"),
+"Coord<Principal<Skewness > >"                               : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<Coord<DivideByCount<Principal<PowerSum<2> > > > >" : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<Coord<PowerSum<1> > >"                             : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<Coord<Principal<Kurtosis > > >"                    : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<Coord<Principal<PowerSum<2> > > >"                 : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<Coord<Principal<PowerSum<3> > > >"                 : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<Coord<Principal<PowerSum<4> > > >"                 : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<Coord<Principal<Skewness > > >"                    : ObjectFeatureInfo("","coor", "unused"),
+"Weighted<PowerSum<0> >"                                     : ObjectFeatureInfo("","ch", "unused"),
+"Principal<Maximum >"                                        :  ObjectFeatureInfo("","ch", "unused"),
+"Principal<Kurtosis >"                                       : ObjectFeatureInfo("","ch", "unused"),
+"Principal<Minimum >"                                        : ObjectFeatureInfo("","ch", "unused"),
+"Principal<PowerSum<2> >"                                    : ObjectFeatureInfo("","ch", "unused"),
+"Principal<PowerSum<3> >"                                    : ObjectFeatureInfo("","ch", "unused"),
+"Principal<PowerSum<4> >"                                    : ObjectFeatureInfo("","ch", "unused"),
+"Principal<Skewness >"                                       : ObjectFeatureInfo("","ch", "unused"),
+"Principal<Variance>"                                        : ObjectFeatureInfo("","ch", "unused"),
+"PrincipalAxes"                                              : ObjectFeatureInfo("","ch2", "unused"),
 }
 
 import vigra, numpy
@@ -105,10 +107,13 @@ def testObjectFeatureDefinitions():
                 
                 print "%%%%",k
                 feat = features[k]
-                if info.humanName == "":
-                    continue
+                #if info.humanName == "":
+                #    continue
                 
                 realSize = numpy.prod(feat.shape[1:]) if isinstance(feat, numpy.ndarray) and len(feat.shape) > 1 else 1
+                print k
+                print realSize
+                print info.size(len(shape), channel)
                 assert info.size(len(shape), channel) == realSize, "%s has real size %d, but needs %d (shape=%r, channels=%d)" % (k, realSize, info.size(len(shape), channel), shape, channel)
                     
             grouped = defaultdict(list)
