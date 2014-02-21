@@ -1,4 +1,5 @@
 from collections import defaultdict
+import cgi
 
 class ObjectFeatureInfo(object):
     def __init__(self, humanName, size2D, size3D, group):
@@ -156,7 +157,7 @@ class ObjectFeatureSelectionWidget(QWidget):
         sel = sel[0]
         info = r[self.item2id[sel]]
         self.help.setText("<h2>%s</h2><p>vigra function: <tt>%s</tt></p><p>#channels: %d</p>" \
-            % (info.humanName, self.item2id[sel], info.size2D))
+            % (info.humanName, cgi.escape(self.item2id[sel]), info.size2D))
         
         
 
