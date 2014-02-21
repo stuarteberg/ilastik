@@ -77,49 +77,50 @@ r = { \
 
 import vigra, numpy
 
-shapes = [
-    (30,40,50),
-    (30,40),
-]
+def testObjectFeatureDefinitions():
+    shapes = [
+        (30,40,50),
+        (30,40),
+    ]
 
-for channel in [0, 2, 3, 4]:
-    for shape in shapes:
-        if channel == 0:
-            data = numpy.random.random(shape).astype(numpy.float32)
-        else:
-            data = numpy.random.random(shape+(channel,)).astype(numpy.float32)
-        seg  = numpy.zeros(shape, dtype=numpy.uint32)
-        seg.flat = numpy.arange(1,numpy.prod(seg.shape)+1)
-        
-        features = vigra.analysis.extractRegionFeatures(data, seg, features="all")
-        #import IPython; IPython.embed()
-        
-        for k in features.keys():
-            if k == "Kurtosis" or k == "Principal<Kurtosis >":
-                continue
+    for channel in [0, 2, 3, 4]:
+        for shape in shapes:
+            if channel == 0:
+                data = numpy.random.random(shape).astype(numpy.float32)
+            else:
+                data = numpy.random.random(shape+(channel,)).astype(numpy.float32)
+            seg  = numpy.zeros(shape, dtype=numpy.uint32)
+            seg.flat = numpy.arange(1,numpy.prod(seg.shape)+1)
             
-            print k
-            assert k in r, "feature %s not available for shape=%r, channel=%d" % (k, shape, channel)
-            info = r[k]
+            features = vigra.analysis.extractRegionFeatures(data, seg, features="all")
+            #import IPython; IPython.embed()
             
-            print "%%%%",k
-            feat = features[k]
-            if info.humanName == "":
-                continue
-            
-            realSize = numpy.prod(feat.shape[1:]) if isinstance(feat, numpy.ndarray) and len(feat.shape) > 1 else 1
-            assert info.size(len(shape), channel) == realSize, "%s has real size %d, but needs %d (shape=%r, channels=%d)" % (k, realSize, info.size(len(shape), channel), shape, channel)
+            for k in features.keys():
+                if k == "Kurtosis" or k == "Principal<Kurtosis >":
+                    continue
                 
-        grouped = defaultdict(list)
-        from itertools import groupby
-        for key, group in groupby(r, lambda x: r[x].group):
-            for thing in group:
-                grouped[key].append(thing) 
+                print k
+                assert k in r, "feature %s not available for shape=%r, channel=%d" % (k, shape, channel)
+                info = r[k]
                 
-        for k,vv in grouped.iteritems():
-            print "*** %s ***" % k
-            for v in vv:
-                print "    %s" % r[v].humanName
+                print "%%%%",k
+                feat = features[k]
+                if info.humanName == "":
+                    continue
+                
+                realSize = numpy.prod(feat.shape[1:]) if isinstance(feat, numpy.ndarray) and len(feat.shape) > 1 else 1
+                assert info.size(len(shape), channel) == realSize, "%s has real size %d, but needs %d (shape=%r, channels=%d)" % (k, realSize, info.size(len(shape), channel), shape, channel)
+                    
+            grouped = defaultdict(list)
+            from itertools import groupby
+            for key, group in groupby(r, lambda x: r[x].group):
+                for thing in group:
+                    grouped[key].append(thing) 
+                    
+            for k,vv in grouped.iteritems():
+                print "*** %s ***" % k
+                for v in vv:
+                    print "    %s" % r[v].humanName
             
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -161,6 +162,12 @@ class ObjectFeatureSelectionWidget(QWidget):
         v2 = QHBoxLayout()
         v2.addWidget(h)
         self.setLayout(v2)
+        
+        grouped = defaultdict(list)
+        from itertools import groupby
+        for key, group in groupby(r, lambda x: r[x].group):
+            for thing in group:
+                grouped[key].append(thing) 
         
         for k,vv in grouped.iteritems():
             if k == "unused":
