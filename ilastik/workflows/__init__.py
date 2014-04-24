@@ -50,3 +50,4 @@ if ilastik.config.cfg.getboolean('ilastik', 'debug'):
     import examples.deviationFromMean
     import examples.labeling
     import examples.dataConversion
+    import examples.inputPreprocessing

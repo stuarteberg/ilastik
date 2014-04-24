@@ -20,7 +20,6 @@ from lazyflow.graph import Graph
 from lazyflow.roi import TinyVector
 
 from ilastik.applets.dataSelection import DataSelectionApplet
-from ilastik.applets.layerViewer import LayerViewerApplet
 from ilastik.applets.inputPreprocessing import InputPreprocessingApplet
 from ilastik.applets.dataExport.dataExportApplet import DataExportApplet
 
@@ -28,11 +27,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 class InputPreprocessingWorkflow(Workflow):
+    workflowName = "Input Preprocessing"
     def __init__(self, shell, headless, workflow_cmdline_args, project_creation_args, *args, **kwargs):
         
         # Create a graph to be shared by all operators
         graph = Graph()
-        super(InputPreprocessingWorkflow, self).__init__(shell, headless, workflow_cmdline_args, project_creation_args, graph=graph, *args, **kwargs)
+        super(InputPreprocessingWorkflow, self).__init__(shell, 
+                                                         headless, 
+                                                         workflow_cmdline_args, 
+                                                         project_creation_args, 
+                                                         graph=graph, 
+                                                         *args, **kwargs)
         self._applets = []
 
         # Create applets 
@@ -42,14 +47,16 @@ class InputPreprocessingWorkflow(Workflow):
                                                        supportIlastik05Import=True, 
                                                        batchDataGui=False,
                                                        force5d=True)
-        self.viewerApplet = LayerViewerApplet(self)
+
+        self.inputPreprocessingApplet = InputPreprocessingApplet(self, "Input Preprocessing")
+        
         self.dataExportApplet = DataExportApplet(self, "Data Export")
 
         opDataSelection = self.dataSelectionApplet.topLevelOperator
-        opDataSelection.DatasetRoles.setValue( ["Raw Data", "Other Data"] )
+        opDataSelection.DatasetRoles.setValue( ["Raw Data"] )
 
         self._applets.append( self.dataSelectionApplet )
-        self._applets.append( self.viewerApplet )
+        self._applets.append( self.inputPreprocessingApplet )
         self._applets.append( self.dataExportApplet )
 
         self._workflow_cmdline_args = workflow_cmdline_args
@@ -58,21 +65,21 @@ class InputPreprocessingWorkflow(Workflow):
         """
         Overridden from Workflow base class.  Called by the Project Manager.
         """
-        logger.info( "LayerViewerWorkflow Project was opened with the following args: " )
+        logger.info( "InputPreprocessingWorkflow Project was opened with the following args: " )
         logger.info( self._workflow_cmdline_args )
 
     def connectLane(self, laneIndex):
         opDataSelectionView = self.dataSelectionApplet.topLevelOperator.getLane(laneIndex)
-        opLayerViewerView = self.viewerApplet.topLevelOperator.getLane(laneIndex)
+        opInputPreprocessing = self.inputPreprocessingApplet.topLevelOperator.getLane(laneIndex)
         opDataExportView = self.dataExportApplet.topLevelOperator.getLane(laneIndex)
 
-        # Connect top-level operators                                                                                                                 
-        opLayerViewerView.RawInput.connect( opDataSelectionView.ImageGroup[0] )
-        opLayerViewerView.OtherInput.connect( opDataSelectionView.ImageGroup[1] )
+        # Connect top-level operators
+        opInputPreprocessing.Input.connect( opDataSelectionView.ImageGroup[0] )
+        opInputPreprocessing.RawDatasetInfo.connect( opDataSelectionView.DatasetGroup[0] )
 
-        opDataExportView.RawData.connect( opDataSelectionView.ImageGroup[0] )
-        opDataExportView.Input.connect( opDataSelectionView.ImageGroup[1] )
-        opDataExportView.RawDatasetInfo.connect( opDataSelectionView.DatasetGroup[0] )        
+        opDataExportView.RawData.connect( opInputPreprocessing.CroppedImage )
+        opDataExportView.Input.connect( opInputPreprocessing.Output )
+        opDataExportView.RawDatasetInfo.connect( opDataSelectionView.DatasetGroup[0] )
         opDataExportView.WorkingDirectory.connect( opDataSelectionView.WorkingDirectory )
 
     @property
@@ -98,7 +105,7 @@ class InputPreprocessingWorkflow(Workflow):
                             opDataExport.Input[0].ready() and \
                             (TinyVector(opDataExport.Input[0].meta.shape) > 0).all()
 
-        self._shell.setAppletEnabled(self.viewerApplet, input_ready)
+        self._shell.setAppletEnabled(self.inputPreprocessingApplet, input_ready)
         self._shell.setAppletEnabled(self.dataExportApplet, export_data_ready)
         
         # Lastly, check for certain "busy" conditions, during which we 

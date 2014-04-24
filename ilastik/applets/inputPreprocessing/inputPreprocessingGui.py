@@ -17,15 +17,18 @@
 import os
 import threading
 from functools import partial
+import collections
 
 import sip
 from PyQt4 import uic
-from PyQt4.QtGui import QApplication, QWidget, QIcon, QHeaderView, QStackedWidget, QTableWidgetItem, QPushButton, QMessageBox
+from PyQt4.QtCore import Qt
+from PyQt4.QtGui import QApplication, QWidget, QIcon, QHeaderView, QStackedWidget, QTableWidgetItem, QPushButton, QMessageBox, QCheckBox
 
 from lazyflow.graph import Slot
 
 from ilastik.utility import bind
 from lazyflow.utility import PathComponents
+from lazyflow.roi import roiFromShape
 from ilastik.utility.gui import ThreadRouter, threadRouted, ThunkEvent, ThunkEventHandler
 from ilastik.shell.gui.iconMgr import ilastikIcons
 from ilastik.applets.layerViewer.layerViewerGui import LayerViewerGui
@@ -38,8 +41,15 @@ logger = logging.getLogger(__name__)
 class Column():
     """Enum for table column positions"""
     Dataset = 0
-    CropRegion = 1
-    DownSampledSize = 2
+    ApplyCrop = 1
+    CropRoi = 2
+    ApplyDownsample = 3
+    DownsampledSize = 4
+
+class Stage():
+    INPUT = 0
+    CROPPED = 1
+    #DOWNSAMPLED = 2
 
 class InputPreprocessingGui(QWidget):
     """
@@ -60,7 +70,7 @@ class InputPreprocessingGui(QWidget):
         return []
 
     def viewerControlWidget(self):
-        return self._viewerControlWidgetStack
+        return self._viewerControlWidget
 
     def setImageIndex(self, index):
         pass
@@ -97,6 +107,7 @@ class InputPreprocessingGui(QWidget):
         self.progressSignal = parentApplet.progressSignal
         
         self.layerViewerGuis = {}
+        self._mode = Stage.INPUT
         
         def handleNewDataset( multislot, index ):
             # Make room in the GUI table
@@ -111,11 +122,11 @@ class InputPreprocessingGui(QWidget):
             multislot[index].notifyUnready( self._handleReadyStatusChange )
             multislot[index].notifyReady( self._handleReadyStatusChange )
 
-        self.topLevelOperator.ExportPath.notifyInserted( bind( handleNewDataset ) )
+        self.topLevelOperator.Output.notifyInserted( bind( handleNewDataset ) )
         
         # For each dataset that already exists, update the GUI
-        for i, subslot in enumerate(self.topLevelOperator.ExportPath):
-            handleNewDataset( self.topLevelOperator.ExportPath, i )
+        for i, subslot in enumerate(self.topLevelOperator.Output):
+            handleNewDataset( self.topLevelOperator.Output, i )
             if subslot.ready():
                 self.updateTableForSlot(subslot)
     
@@ -131,7 +142,7 @@ class InputPreprocessingGui(QWidget):
             if imageSlot in self.layerViewerGuis.keys():
                 layerViewerGui = self.layerViewerGuis[imageSlot]
                 self.viewerStack.removeWidget( layerViewerGui )
-                self._viewerControlWidgetStack.removeWidget( layerViewerGui.viewerControlWidget() )
+                self._viewerControlWidget.removeWidget( layerViewerGui.viewerControlWidget() )
                 layerViewerGui.stopAndCleanUp()
 
         self.topLevelOperator.Input.notifyRemove( bind( handleImageRemoved ) )
@@ -141,7 +152,7 @@ class InputPreprocessingGui(QWidget):
         Load the ui file for the applet drawer, which we own.
         """
         localDir = os.path.split(__file__)[0]
-        drawerPath = os.path.join( localDir, "inputPreprocessingTableWidgetDrawer.ui")
+        drawerPath = os.path.join( localDir, "inputPreprocessingDrawer.ui")
         self.drawer = uic.loadUi(drawerPath)
 
     def initCentralUic(self):
@@ -150,7 +161,7 @@ class InputPreprocessingGui(QWidget):
         """
         # Load the ui file into this class (find it in our own directory)
         localDir = os.path.split(__file__)[0]
-        uic.loadUi(localDir+"/dataExport.ui", self)
+        uic.loadUi(localDir+"/inputPreprocessingCentralWidget.ui", self)
 
         self.inputPreprocessingTableWidget.resizeRowsToContents()
         self.inputPreprocessingTableWidget.resizeColumnsToContents()
@@ -159,8 +170,10 @@ class InputPreprocessingGui(QWidget):
         self.inputPreprocessingTableWidget.horizontalHeader().setResizeMode(0, QHeaderView.Interactive)
         
         self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.Dataset, 200)
-        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.CropRegion, 250)
-        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.DownSampledSize, 100)
+        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.ApplyCrop, 200)
+        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.CropRoi, 250)
+        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.ApplyDownsample, 100)
+        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.DownsampledSize, 100)
 
         self.inputPreprocessingTableWidget.verticalHeader().hide()
 
@@ -176,7 +189,14 @@ class InputPreprocessingGui(QWidget):
         self.viewerStack.addWidget( QWidget() )
         
     def initViewerControls(self):
-        self._viewerControlWidgetStack = QStackedWidget(parent=self)
+        self._viewerControlWidget = uic.loadUi(os.path.split(__file__)[0] + "/viewerControls.ui")
+        list_widget = self._viewerControlWidget.stageLayerListWidget
+        list_widget.addItems( ["Input", "Cropped"] )
+
+        def handleSelectionChanged(row):
+            self._mode = row
+            self.viewerStack.currentWidget().setMode( self._mode )
+        list_widget.currentRowChanged.connect( handleSelectionChanged )
 
     def getSlotIndex(self, multislot, subslot ):
         # Which index is this slot?
@@ -190,37 +210,56 @@ class InputPreprocessingGui(QWidget):
         """
         Update the table row that corresponds to the given slot of the top-level operator (could be either input slot)
         """
-        #FIXME
-        return
-    
-        row = self.getSlotIndex( self.topLevelOperator.ExportPath, slot )
+        row = self.getSlotIndex( self.topLevelOperator.Output, slot )
         assert row != -1, "Unknown input slot!"
 
-        if not self.topLevelOperator.ExportPath[row].ready() or\
+        if not self.topLevelOperator.Output[row].ready() or\
            not self.topLevelOperator.RawDatasetInfo[row].ready():
             return
+
+        opLane = self.topLevelOperator.getLane(row)
         
         try:
-            nickname = self.topLevelOperator.RawDatasetInfo[row].value.nickname
-            exportPath = self.topLevelOperator.ExportPath[row].value
+            nickname = opLane.RawDatasetInfo.value.nickname
+            apply_crop = opLane.CropRoi.ready()
+            if apply_crop:
+                crop_roi = opLane.CropRoi.value
+                crop_roi_str = str(tuple(crop_roi[0])) + " : " + str(tuple(crop_roi[1]))
+            else:
+                crop_roi_str = ""
+            
+            # TODO: Downsampling
+            
         except Slot.SlotNotReadyError:
             # Sadly, it is possible to get here even though we checked for .ready() immediately beforehand.
             # That's because the graph has a diamond-shaped DAG of connections, but the graph has no transaction mechanism
             # (It's therefore possible for RawDatasetInfo[row] to be ready() even though it's upstream partner is NOT ready.
             return
-                
+        
+        crop_checkbox = QCheckBox()
+        crop_checkbox.setChecked( apply_crop )
+        crop_checkbox.toggled.connect( partial(self._handleCropCheckboxToggled, opLane) )
+        
         self.inputPreprocessingTableWidget.setItem( row, Column.Dataset, QTableWidgetItem( decode_to_qstring(nickname) ) )
-        self.inputPreprocessingTableWidget.setItem( row, Column.ExportLocation, QTableWidgetItem( decode_to_qstring(exportPath) ) )
+        self.inputPreprocessingTableWidget.setItem( row, Column.CropRoi, QTableWidgetItem( crop_roi_str ) )
 
-        exportNowButton = QPushButton("Export")
-        exportNowButton.setToolTip("Generate individual batch output dataset.")
-        exportNowButton.clicked.connect( bind(self.exportResultsForSlot, self.topLevelOperator[row] ) )
-        self.inputPreprocessingTableWidget.setCellWidget( row, Column.Action, exportNowButton )
+        self.inputPreprocessingTableWidget.setCellWidget( row, Column.ApplyCrop, crop_checkbox )
 
         # Select a row if there isn't one already selected.
         selectedRanges = self.inputPreprocessingTableWidget.selectedRanges()
         if len(selectedRanges) == 0:
             self.inputPreprocessingTableWidget.selectRow(0)
+
+    def _handleCropCheckboxToggled(self, opLane, checked):
+        if checked:
+            opLane.CropRoi.setValue( roiFromShape( opLane.Input.meta.shape ) )
+        else:
+            opLane.CropRoi.disconnect()
+
+        # refresh
+        self.updateTableForSlot(opLane.Output)
+        self.showSelectedDataset()
+        
 
     def setEnabledIfAlive(self, widget, enable):
         if not sip.isdeleted(widget):
@@ -269,9 +308,6 @@ class InputPreprocessingGui(QWidget):
         self.inputPreprocessingTableWidget.itemSelectionChanged.connect(self.handleTableSelectionChange)
         
     def showSelectedDataset(self):
-        """
-        Show the exported file in the viewer
-        """
         # Get the selected row and corresponding slot value
         selectedRanges = self.inputPreprocessingTableWidget.selectedRanges()
         if len(selectedRanges) == 0:
@@ -280,8 +316,8 @@ class InputPreprocessingGui(QWidget):
         imageSlot = self.topLevelOperator.Input[row]
         
         # Create if necessary
+        opLane = self.topLevelOperator.getLane(row)
         if imageSlot not in self.layerViewerGuis.keys():
-            opLane = self.topLevelOperator.getLane(row)
             layerViewer = self.createLayerViewer(opLane)
 
             # Maximize the x-y view by default.
@@ -289,13 +325,58 @@ class InputPreprocessingGui(QWidget):
             
             self.layerViewerGuis[imageSlot] = layerViewer
             self.viewerStack.addWidget( layerViewer )
-            self._viewerControlWidgetStack.addWidget( layerViewer.viewerControlWidget() )
+            
+            layerViewer.editor.cropModel.changed.connect( partial(self._handleCropChange, opLane) )
 
         # Show the right one
         layerViewer = self.layerViewerGuis[imageSlot]
+        layerViewer.setMode(self._mode)
+        
+        # Enable/disable cropping
+        if opLane.CropRoi.ready():
+            crop_extents_3d = _get_crop_extents(opLane)
+            layerViewer.editor.cropModel.set_crop_extents( crop_extents_3d )
+        
         self.viewerStack.setCurrentWidget( layerViewer )
-        self._viewerControlWidgetStack.setCurrentWidget( layerViewer.viewerControlWidget() )
+        self.refreshViewerControls(row)
 
+    def _handleCropChange( self, opLane, crop_extents ):
+        old_roi = opLane.CropRoi.value
+        old_extents = map(list, zip(*old_roi))
+
+        # FIXME: doesn't work for 2D.        
+        axes = opLane.Input.meta.getAxisKeys()
+        old_extents[ axes.index('x') ][0] = crop_extents[0][0]
+        old_extents[ axes.index('x') ][1] = crop_extents[0][1]
+        old_extents[ axes.index('y') ][0] = crop_extents[1][0]
+        old_extents[ axes.index('y') ][1] = crop_extents[1][1]
+        old_extents[ axes.index('z') ][0] = crop_extents[2][0]
+        old_extents[ axes.index('z') ][1] = crop_extents[2][1]
+        
+        new_roi = zip( *old_extents )
+        opLane.CropRoi.setValue( new_roi )
+
+        # Update the table
+        crop_roi_str = str(tuple(new_roi[0])) + " : " + str(tuple(new_roi[1]))
+        row = opLane.current_view_index()
+        self.inputPreprocessingTableWidget.setItem( row, Column.CropRoi, QTableWidgetItem( crop_roi_str ) )
+
+
+    def refreshViewerControls(self, lane_index):
+        list_widget = self._viewerControlWidget.stageLayerListWidget
+        def setItemEnabled(item_row, enabled):
+            item = list_widget.item(item_row)
+            flags = item.flags()
+            if enabled:
+                flags |= Qt.ItemIsEnabled
+            else:
+                flags &= ~Qt.ItemIsEnabled
+            item.setFlags( flags )
+
+            opLane = self.topLevelOperator.getLane(lane_index)
+            setItemEnabled( Stage.INPUT, opLane.Input.ready() )
+            setItemEnabled( Stage.CROPPED, opLane.CroppedImage.ready() )
+            #setItemEnabled( Stage.DOWNSAMPLED, opLane.Output.ready() )
 
     def createLayerViewer(self, opLane):
         """
@@ -305,58 +386,75 @@ class InputPreprocessingGui(QWidget):
         """
         return InputPreprocessingLayerViewerGui(self.parentApplet, opLane)
 
+def _get_crop_extents(self, opLane):
+    # The volume editor crop model needs extents in xyz order (3d only),
+    crop_roi = opLane.CropRoi.value
+    axes = opLane.Input.meta.getAxisKeys()
+    tagged_roi_start = collections.OrderedDict( zip(axes, crop_roi[0]) )
+    tagged_roi_stop = collections.OrderedDict( zip(axes, crop_roi[1]) )
+    crop_extents_3d = [ ( tagged_roi_start['x'], tagged_roi_stop['x'] ),
+                        ( tagged_roi_start['y'], tagged_roi_stop['y'] ),
+                        ( tagged_roi_start['z'], tagged_roi_stop['z'] ) ]
+    return crop_extents_3d
+
 class InputPreprocessingLayerViewerGui(LayerViewerGui):
     """
     Subclass the default LayerViewerGui implementation so we can provide a custom layer order.
     """
+    SHOW_INPUT = Stage.INPUT
+    SHOW_CROPPED = Stage.CROPPED
+    # SHOW_DOWNSAMPLED = Stage.DOWNSAMPLED
+    
+    def __init__(self, *args, **kwargs):
+        super( InputPreprocessingLayerViewerGui, self ).__init__( *args, **kwargs )
+        self._mode = self.SHOW_INPUT
+    
+    def setMode(self, mode):
+        mode_changed = (mode != self._mode)
+            
+        allow_cropping = ((self._mode == self.SHOW_INPUT) and self.topLevelOperatorView.CropRoi.ready())
+        self.editor.showCropLines(allow_cropping)
+        self._mode = mode
 
+        if mode_changed:
+            # Force a refresh of the layerstack
+            self.updateAllLayers()
+        
     def setupLayers(self):
         layers = []
-
-        # Show the exported data on disk
         opLane = self.topLevelOperatorView
-        exportedDataSlot = opLane.ImageOnDisk
-        if exportedDataSlot.ready():
-            exportLayer = self.createStandardLayerFromSlot( exportedDataSlot )
-            exportLayer.name = "Exported Image (from disk)"
-            exportLayer.visible = True
-            exportLayer.opacity = 1.0
-            layers.append(exportLayer)
-        
-        # Show the (live-updated) data we're exporting
-        previewSlot = opLane.ImageToExport
-        if previewSlot.ready():
-            previewLayer = self.createStandardLayerFromSlot( previewSlot )
-            previewLayer.name = "Live Preview"
-            previewLayer.visible = False # off by default
-            previewLayer.opacity = 1.0
-            layers.append(previewLayer)
 
-        rawSlot = opLane.FormattedRawData
-        if rawSlot.ready():
-            rawLayer = self.createStandardLayerFromSlot( rawSlot )
-            rawLayer.name = "Raw Data"
-            rawLayer.visible = True
-            rawLayer.opacity = 1.0
-            layers.append(rawLayer)
+        if self._mode == self.SHOW_INPUT:
+            # Show the exported data on disk
+            if opLane.Input.ready():
+                inputLayer = self.createStandardLayerFromSlot( opLane.Input )
+                inputLayer.name = "Input Data"
+                inputLayer.visible = True
+                inputLayer.opacity = 1.0
+                layers.append(inputLayer)
+                
+                crop_extents_3d = _get_crop_extents(opLane)
+                self.editor.cropModel.set_crop_extents( crop_extents_3d )
+        
+        if self._mode == self.SHOW_CROPPED:
+            # Show the exported data on disk
+            if opLane.CroppedImage.ready():
+                croppedLayer = self.createStandardLayerFromSlot( opLane.CroppedImage )
+                croppedLayer.name = "Cropped data"
+                croppedLayer.visible = True
+                croppedLayer.opacity = 1.0
+                layers.append(croppedLayer)
+
+        # TODO
+        #if self._mode == self.SHOW_DOWNAMPLED
 
         return layers
 
     def determineDatashape(self):
         """Overridden from LayerViewerGui"""
         shape = None
-        if self.topLevelOperatorView.ImageToExport.ready():
-            shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.ImageToExport)
-        elif self.topLevelOperatorView.FormattedRawData.ready():
-            shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.FormattedRawData)
+        if self._mode == self.SHOW_INPUT and self.topLevelOperatorView.Input.ready():
+            shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.Input)
+        elif self._mode == self.SHOW_CROPPED and self.topLevelOperatorView.CroppedImage.ready():
+            shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.CroppedImage)
         return shape
-            
-            
-
-
-
-
-
-
-
-

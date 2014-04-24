@@ -54,7 +54,17 @@
       </column>
       <column>
        <property name="text">
+        <string>Crop?</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
         <string>Crop Region</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Downsample?</string>
        </property>
       </column>
       <column>
