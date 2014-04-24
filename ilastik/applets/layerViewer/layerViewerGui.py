@@ -417,7 +417,6 @@ class LayerViewerGui(QWidget):
             raise RuntimeError(msg)
 
         # If the datashape changed, tell the editor
-        # FIXME: This may not be necessary now that this gui doesn't handle the multi-image case...
         newDataShape = self.determineDatashape()
         if newDataShape is not None and self.editor.dataShape != newDataShape:
             self.editor.dataShape = newDataShape

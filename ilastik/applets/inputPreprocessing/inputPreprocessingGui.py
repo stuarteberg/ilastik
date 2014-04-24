@@ -15,22 +15,19 @@
 # Copyright 2011-2014, the ilastik developers
 
 import os
-import threading
 from functools import partial
 import collections
 
 import sip
 from PyQt4 import uic
 from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QApplication, QWidget, QIcon, QHeaderView, QStackedWidget, QTableWidgetItem, QPushButton, QMessageBox, QCheckBox
+from PyQt4.QtGui import QApplication, QWidget, QHeaderView, QTableWidgetItem, QCheckBox, QListWidget
 
 from lazyflow.graph import Slot
 
 from ilastik.utility import bind
-from lazyflow.utility import PathComponents
 from lazyflow.roi import roiFromShape
 from ilastik.utility.gui import ThreadRouter, threadRouted, ThunkEvent, ThunkEventHandler
-from ilastik.shell.gui.iconMgr import ilastikIcons
 from ilastik.applets.layerViewer.layerViewerGui import LayerViewerGui
 
 from volumina.utility import decode_to_qstring
@@ -76,9 +73,10 @@ class InputPreprocessingGui(QWidget):
         pass
 
     def stopAndCleanUp(self):
-        for editor in self.layerViewerGuis.values():
-            self.viewerStack.removeWidget( editor )
-            editor.stopAndCleanUp()
+        for viewer_dict in self.layerViewerGuis.values():
+            for viewer in viewer_dict.values():
+                self.viewerStack.removeWidget( viewer )
+                viewer.stopAndCleanUp()
         self.layerViewerGuis.clear()
 
     def imageLaneAdded(self, laneIndex):
@@ -107,7 +105,7 @@ class InputPreprocessingGui(QWidget):
         self.progressSignal = parentApplet.progressSignal
         
         self.layerViewerGuis = {}
-        self._mode = Stage.INPUT
+        self._display_stage = Stage.INPUT
         
         def handleNewDataset( multislot, index ):
             # Make room in the GUI table
@@ -140,10 +138,12 @@ class InputPreprocessingGui(QWidget):
             # Remove the viewer for this dataset
             imageSlot = self.topLevelOperator.Input[index]
             if imageSlot in self.layerViewerGuis.keys():
-                layerViewerGui = self.layerViewerGuis[imageSlot]
-                self.viewerStack.removeWidget( layerViewerGui )
-                self._viewerControlWidget.removeWidget( layerViewerGui.viewerControlWidget() )
-                layerViewerGui.stopAndCleanUp()
+                viewer_dict = self.layerViewerGuis[imageSlot]
+                for layerViewerGui in viewer_dict.values():
+                    self.viewerStack.removeWidget( layerViewerGui )
+                    layerViewerGui.stopAndCleanUp()
+                viewer_dict.clear()
+            del self.layerViewerGuis[imageSlot]
 
         self.topLevelOperator.Input.notifyRemove( bind( handleImageRemoved ) )
     
@@ -192,10 +192,11 @@ class InputPreprocessingGui(QWidget):
         self._viewerControlWidget = uic.loadUi(os.path.split(__file__)[0] + "/viewerControls.ui")
         list_widget = self._viewerControlWidget.stageLayerListWidget
         list_widget.addItems( ["Input", "Cropped"] )
+        list_widget.setSelectionMode( QListWidget.SingleSelection )
 
         def handleSelectionChanged(row):
-            self._mode = row
-            self.viewerStack.currentWidget().setMode( self._mode )
+            self._display_stage = row
+            self.showSelectedDataset()
         list_widget.currentRowChanged.connect( handleSelectionChanged )
 
     def getSlotIndex(self, multislot, subslot ):
@@ -318,29 +319,32 @@ class InputPreprocessingGui(QWidget):
         # Create if necessary
         opLane = self.topLevelOperator.getLane(row)
         if imageSlot not in self.layerViewerGuis.keys():
-            layerViewer = self.createLayerViewer(opLane)
-
-            # Maximize the x-y view by default.
-            layerViewer.volumeEditorWidget.quadview.ensureMaximized(2)
-            
-            self.layerViewerGuis[imageSlot] = layerViewer
-            self.viewerStack.addWidget( layerViewer )
-            
+            self.layerViewerGuis[imageSlot] = {}
+        
+        # Create if necessary
+        if self._display_stage not in self.layerViewerGuis[imageSlot]:
+            layerViewer = self.createLayerViewer(opLane, self._display_stage)
+            self.layerViewerGuis[imageSlot][self._display_stage] = layerViewer
+            self.viewerStack.addWidget( layerViewer )            
             layerViewer.editor.cropModel.changed.connect( partial(self._handleCropChange, opLane) )
 
-        # Show the right one
-        layerViewer = self.layerViewerGuis[imageSlot]
-        layerViewer.setMode(self._mode)
-        
-        # Enable/disable cropping
-        if opLane.CropRoi.ready():
-            crop_extents_3d = _get_crop_extents(opLane)
-            layerViewer.editor.cropModel.set_crop_extents( crop_extents_3d )
-        
+            # Enable/disable cropping
+            if self._display_stage == Stage.INPUT and opLane.CropRoi.ready():
+                crop_extents_3d = _get_crop_extents(opLane)
+                layerViewer.editor.cropModel.set_crop_extents( crop_extents_3d )
+
+        # Show the viewer
+        layerViewer = self.layerViewerGuis[imageSlot][self._display_stage]
         self.viewerStack.setCurrentWidget( layerViewer )
         self.refreshViewerControls(row)
+        
+        # Enable/disable crop lines
+        show_croplines = (self._display_stage == Stage.INPUT and opLane.CropRoi.ready())
+        layerViewer.editor.showCropLines( show_croplines )
 
     def _handleCropChange( self, opLane, crop_extents ):
+        if not opLane.CropRoi.ready():
+            return
         old_roi = opLane.CropRoi.value
         old_extents = map(list, zip(*old_roi))
 
@@ -361,6 +365,11 @@ class InputPreprocessingGui(QWidget):
         row = opLane.current_view_index()
         self.inputPreprocessingTableWidget.setItem( row, Column.CropRoi, QTableWidgetItem( crop_roi_str ) )
 
+        # Find the layerviewer that shows the cropped result and update it now
+        # (Normally, it doesn't look for changes in datashape)
+        if opLane.Input in self.layerViewerGuis and \
+           Stage.CROPPED in self.layerViewerGuis[opLane.Input]:
+            self.layerViewerGuis[opLane.Input][Stage.CROPPED].updateAllLayers()        
 
     def refreshViewerControls(self, lane_index):
         list_widget = self._viewerControlWidget.stageLayerListWidget
@@ -373,22 +382,26 @@ class InputPreprocessingGui(QWidget):
                 flags &= ~Qt.ItemIsEnabled
             item.setFlags( flags )
 
-            opLane = self.topLevelOperator.getLane(lane_index)
-            setItemEnabled( Stage.INPUT, opLane.Input.ready() )
-            setItemEnabled( Stage.CROPPED, opLane.CroppedImage.ready() )
-            #setItemEnabled( Stage.DOWNSAMPLED, opLane.Output.ready() )
+        opLane = self.topLevelOperator.getLane(lane_index)
+        if not opLane.CroppedImage.ready() and list_widget.selectedIndexes()[0] == Stage.CROPPED:
+            list_widget.item(Stage.INPUT).setSelected(True)
+        
+        setItemEnabled( Stage.INPUT, opLane.Input.ready() )
+        setItemEnabled( Stage.CROPPED, opLane.CroppedImage.ready() )
+        #setItemEnabled( Stage.DOWNSAMPLED, opLane.Output.ready() )
 
-    def createLayerViewer(self, opLane):
+    def createLayerViewer(self, opLane, stage):
         """
         This method provides an instance of LayerViewerGui for the given data lane.
-        If this GUI class is subclassed, this method can be reimplemented to provide 
-        custom layer types for the exported layers.
         """
-        return InputPreprocessingLayerViewerGui(self.parentApplet, opLane)
+        return InputPreprocessingLayerViewerGui(stage, self.parentApplet, opLane)
 
-def _get_crop_extents(self, opLane):
+def _get_crop_extents(opLane):
     # The volume editor crop model needs extents in xyz order (3d only),
-    crop_roi = opLane.CropRoi.value
+    if opLane.CropRoi.ready():
+        crop_roi = opLane.CropRoi.value
+    else:
+        crop_roi = roiFromShape( opLane.Input.meta.shape )
     axes = opLane.Input.meta.getAxisKeys()
     tagged_roi_start = collections.OrderedDict( zip(axes, crop_roi[0]) )
     tagged_roi_stop = collections.OrderedDict( zip(axes, crop_roi[1]) )
@@ -401,30 +414,16 @@ class InputPreprocessingLayerViewerGui(LayerViewerGui):
     """
     Subclass the default LayerViewerGui implementation so we can provide a custom layer order.
     """
-    SHOW_INPUT = Stage.INPUT
-    SHOW_CROPPED = Stage.CROPPED
-    # SHOW_DOWNSAMPLED = Stage.DOWNSAMPLED
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, stage, *args, **kwargs):
         super( InputPreprocessingLayerViewerGui, self ).__init__( *args, **kwargs )
-        self._mode = self.SHOW_INPUT
+        self._stage = stage
     
-    def setMode(self, mode):
-        mode_changed = (mode != self._mode)
-            
-        allow_cropping = ((self._mode == self.SHOW_INPUT) and self.topLevelOperatorView.CropRoi.ready())
-        self.editor.showCropLines(allow_cropping)
-        self._mode = mode
-
-        if mode_changed:
-            # Force a refresh of the layerstack
-            self.updateAllLayers()
-        
     def setupLayers(self):
         layers = []
         opLane = self.topLevelOperatorView
 
-        if self._mode == self.SHOW_INPUT:
+        if self._stage == Stage.INPUT:
             # Show the exported data on disk
             if opLane.Input.ready():
                 inputLayer = self.createStandardLayerFromSlot( opLane.Input )
@@ -436,7 +435,7 @@ class InputPreprocessingLayerViewerGui(LayerViewerGui):
                 crop_extents_3d = _get_crop_extents(opLane)
                 self.editor.cropModel.set_crop_extents( crop_extents_3d )
         
-        if self._mode == self.SHOW_CROPPED:
+        if self._stage == Stage.CROPPED:
             # Show the exported data on disk
             if opLane.CroppedImage.ready():
                 croppedLayer = self.createStandardLayerFromSlot( opLane.CroppedImage )
@@ -446,15 +445,15 @@ class InputPreprocessingLayerViewerGui(LayerViewerGui):
                 layers.append(croppedLayer)
 
         # TODO
-        #if self._mode == self.SHOW_DOWNAMPLED
+        #if self._stage == self.SHOW_DOWNAMPLED
 
         return layers
 
     def determineDatashape(self):
         """Overridden from LayerViewerGui"""
         shape = None
-        if self._mode == self.SHOW_INPUT and self.topLevelOperatorView.Input.ready():
+        if self._stage == Stage.INPUT and self.topLevelOperatorView.Input.ready():
             shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.Input)
-        elif self._mode == self.SHOW_CROPPED and self.topLevelOperatorView.CroppedImage.ready():
+        elif self._stage == Stage.CROPPED and self.topLevelOperatorView.CroppedImage.ready():
             shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.CroppedImage)
         return shape
