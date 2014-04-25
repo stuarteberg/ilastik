@@ -143,7 +143,7 @@ class InputPreprocessingGui(QWidget):
                     self.viewerStack.removeWidget( layerViewerGui )
                     layerViewerGui.stopAndCleanUp()
                 viewer_dict.clear()
-            del self.layerViewerGuis[imageSlot]
+                del self.layerViewerGuis[imageSlot]
 
         self.topLevelOperator.Input.notifyRemove( bind( handleImageRemoved ) )
     
@@ -325,8 +325,9 @@ class InputPreprocessingGui(QWidget):
         if self._display_stage not in self.layerViewerGuis[imageSlot]:
             layerViewer = self.createLayerViewer(opLane, self._display_stage)
             self.layerViewerGuis[imageSlot][self._display_stage] = layerViewer
-            self.viewerStack.addWidget( layerViewer )            
-            layerViewer.editor.cropModel.changed.connect( partial(self._handleCropChange, opLane) )
+            self.viewerStack.addWidget( layerViewer )
+            if self._display_stage == Stage.INPUT:
+                layerViewer.editor.cropModel.changed.connect( partial(self._handleCropChange, opLane) )
 
             # Enable/disable cropping
             if self._display_stage == Stage.INPUT and opLane.CropRoi.ready():
@@ -342,20 +343,22 @@ class InputPreprocessingGui(QWidget):
         show_croplines = (self._display_stage == Stage.INPUT and opLane.CropRoi.ready())
         layerViewer.editor.showCropLines( show_croplines )
 
-    def _handleCropChange( self, opLane, crop_extents ):
+    def _handleCropChange( self, opLane, crop_extents_model ):
         if not opLane.CropRoi.ready():
             return
         old_roi = opLane.CropRoi.value
         old_extents = map(list, zip(*old_roi))
 
-        # FIXME: doesn't work for 2D.        
+        new_roi_3d = crop_extents_model.get_roi_3d()
+
+        # FIXME: doesn't work for 2D.
         axes = opLane.Input.meta.getAxisKeys()
-        old_extents[ axes.index('x') ][0] = crop_extents[0][0]
-        old_extents[ axes.index('x') ][1] = crop_extents[0][1]
-        old_extents[ axes.index('y') ][0] = crop_extents[1][0]
-        old_extents[ axes.index('y') ][1] = crop_extents[1][1]
-        old_extents[ axes.index('z') ][0] = crop_extents[2][0]
-        old_extents[ axes.index('z') ][1] = crop_extents[2][1]
+        old_extents[ axes.index('x') ][0] = new_roi_3d[0][0]
+        old_extents[ axes.index('y') ][0] = new_roi_3d[0][1]
+        old_extents[ axes.index('z') ][0] = new_roi_3d[0][2]
+        old_extents[ axes.index('x') ][1] = new_roi_3d[1][0]
+        old_extents[ axes.index('y') ][1] = new_roi_3d[1][1]
+        old_extents[ axes.index('z') ][1] = new_roi_3d[1][2]
         
         new_roi = zip( *old_extents )
         opLane.CropRoi.setValue( new_roi )
