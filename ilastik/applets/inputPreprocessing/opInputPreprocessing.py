@@ -6,7 +6,7 @@ class OpInputPreprocessing(Operator):
     Input = InputSlot()
     RawDatasetInfo = InputSlot() # The original dataset info object for this image.
     CropRoi = InputSlot(optional=True)
-    #DownsampledShape = InputSlot(optional=True)
+    DownsampledShape = InputSlot(optional=True)
     
     CroppedImage = OutputSlot()
     Output = OutputSlot()
@@ -26,7 +26,9 @@ class OpInputPreprocessing(Operator):
             self._opSubRegion.Roi.setValue( self.CropRoi.value )
         else:
             shape = self.Input.meta.shape
-            self._opSubRegion.Roi.setValue( roiFromShape( shape ) )
+            roi = roiFromShape( shape )
+            roi = map( tuple, roi )
+            self._opSubRegion.Roi.setValue( roi )
 
     def execute(self, slot, subindex, roi, result):
         assert False, "Shouldn't get here"
