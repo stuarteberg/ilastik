@@ -38,15 +38,15 @@ logger = logging.getLogger(__name__)
 class Column():
     """Enum for table column positions"""
     Dataset = 0
-    ApplyCrop = 1
-    CropRoi = 2
-    ApplyDownsample = 3
-    DownsampledSize = 4
+    Crop = 1
+    Downsample = 2
+    #ApplyCrop = 1
+    #ApplyDownsample = 3
 
 class Stage():
     INPUT = 0
     CROPPED = 1
-    #DOWNSAMPLED = 2
+    DOWNSAMPLED = 2
 
 class InputPreprocessingGui(QWidget):
     """
@@ -170,15 +170,14 @@ class InputPreprocessingGui(QWidget):
         self.inputPreprocessingTableWidget.horizontalHeader().setResizeMode(0, QHeaderView.Interactive)
         
         self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.Dataset, 200)
-        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.ApplyCrop, 200)
-        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.CropRoi, 250)
-        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.ApplyDownsample, 100)
-        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.DownsampledSize, 100)
+        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.Crop, 250)
+        self.inputPreprocessingTableWidget.horizontalHeader().resizeSection(Column.Downsample, 100)
 
         self.inputPreprocessingTableWidget.verticalHeader().hide()
 
         # Set up handlers
-        self.inputPreprocessingTableWidget.itemSelectionChanged.connect(self.handleTableSelectionChange)
+        self.inputPreprocessingTableWidget.itemSelectionChanged.connect(self._handleTableSelectionChange)
+        #self.inputPreprocessingTableWidget.doubleClicked.connect( self._handle )
 
         # Set up the viewer area
         self.initViewerStack()
@@ -191,7 +190,7 @@ class InputPreprocessingGui(QWidget):
     def initViewerControls(self):
         self._viewerControlWidget = uic.loadUi(os.path.split(__file__)[0] + "/viewerControls.ui")
         list_widget = self._viewerControlWidget.stageLayerListWidget
-        list_widget.addItems( ["Input", "Cropped"] )
+        list_widget.addItems( ["Input", "Cropped", "Downsampled"] )
         list_widget.setSelectionMode( QListWidget.SingleSelection )
 
         def handleSelectionChanged(row):
@@ -229,6 +228,13 @@ class InputPreprocessingGui(QWidget):
             else:
                 crop_roi_str = ""
             
+            apply_resize = opLane.DownsampledShape.ready()
+            if apply_resize:
+                downsampled_shape = opLane.DownsampledShape.value
+                downsampled_shape_str = str(tuple(downsampled_shape))
+            else:
+                downsampled_shape_str = ""
+            
             # TODO: Downsampling
             
         except Slot.SlotNotReadyError:
@@ -237,14 +243,20 @@ class InputPreprocessingGui(QWidget):
             # (It's therefore possible for RawDatasetInfo[row] to be ready() even though it's upstream partner is NOT ready.
             return
         
-        crop_checkbox = QCheckBox()
+        crop_checkbox = QCheckBox(crop_roi_str)
         crop_checkbox.setChecked( apply_crop )
         crop_checkbox.toggled.connect( partial(self._handleCropCheckboxToggled, opLane) )
-        
-        self.inputPreprocessingTableWidget.setItem( row, Column.Dataset, QTableWidgetItem( decode_to_qstring(nickname) ) )
-        self.inputPreprocessingTableWidget.setItem( row, Column.CropRoi, QTableWidgetItem( crop_roi_str ) )
 
-        self.inputPreprocessingTableWidget.setCellWidget( row, Column.ApplyCrop, crop_checkbox )
+        resize_checkbox = QCheckBox(downsampled_shape_str)
+        resize_checkbox.setChecked( apply_resize )
+        resize_checkbox.toggled.connect( partial(self._handleDownsampleCheckboxToggled, opLane) )
+
+        self.inputPreprocessingTableWidget.setItem( row, Column.Dataset, QTableWidgetItem( decode_to_qstring(nickname) ) )
+        #self.inputPreprocessingTableWidget.setItem( row, Column.CropRoi, QTableWidgetItem( crop_roi_str ) )
+        #self.inputPreprocessingTableWidget.setItem( row, Column.DownsampledShape, QTableWidgetItem( downsampled_shape_str ) )
+        self.inputPreprocessingTableWidget.setCellWidget( row, Column.Crop, crop_checkbox )
+        self.inputPreprocessingTableWidget.setCellWidget( row, Column.Downsample, resize_checkbox )
+        self.inputPreprocessingTableWidget.resizeRowsToContents()
 
         # Select a row if there isn't one already selected.
         selectedRanges = self.inputPreprocessingTableWidget.selectedRanges()
@@ -253,14 +265,25 @@ class InputPreprocessingGui(QWidget):
 
     def _handleCropCheckboxToggled(self, opLane, checked):
         if checked:
-            opLane.CropRoi.setValue( roiFromShape( opLane.Input.meta.shape ) )
+            roi = roiFromShape( opLane.Input.meta.shape )
+            roi = map(tuple, roi)
+            opLane.CropRoi.setValue( roi )
         else:
             opLane.CropRoi.disconnect()
 
         # refresh
         self.updateTableForSlot(opLane.Output)
         self.showSelectedDataset()
-        
+
+    def _handleDownsampleCheckboxToggled(self, opLane, checked):
+        if checked:
+            opLane.DownsampledShape.setValue( opLane.CroppedImage.meta.shape )
+        else:
+            opLane.DownsampledShape.disconnect()
+
+        # refresh
+        self.updateTableForSlot(opLane.Output)
+        self.showSelectedDataset()                    
 
     def setEnabledIfAlive(self, widget, enable):
         if not sip.isdeleted(widget):
@@ -284,7 +307,7 @@ class InputPreprocessingGui(QWidget):
         executable_event = ThunkEvent( partial(self.setEnabledIfAlive, self.drawer.exportAllButton, all_ready) )
         QApplication.instance().postEvent( self, executable_event )
 
-    def handleTableSelectionChange(self):
+    def _handleTableSelectionChange(self):
         """
         Any time the user selects a new item, select the whole row.
         """
@@ -301,12 +324,12 @@ class InputPreprocessingGui(QWidget):
                 selectedItemRows.add(row)
         
         # Disconnect from selection change notifications while we do this
-        self.inputPreprocessingTableWidget.itemSelectionChanged.disconnect( self.handleTableSelectionChange )
+        self.inputPreprocessingTableWidget.itemSelectionChanged.disconnect( self._handleTableSelectionChange )
         for row in selectedItemRows:
             self.inputPreprocessingTableWidget.selectRow(row)
 
         # Reconnect now that we're finished
-        self.inputPreprocessingTableWidget.itemSelectionChanged.connect(self.handleTableSelectionChange)
+        self.inputPreprocessingTableWidget.itemSelectionChanged.connect(self._handleTableSelectionChange)
         
     def showSelectedDataset(self):
         # Get the selected row and corresponding slot value
@@ -366,7 +389,8 @@ class InputPreprocessingGui(QWidget):
         # Update the table
         crop_roi_str = str(tuple(new_roi[0])) + " : " + str(tuple(new_roi[1]))
         row = opLane.current_view_index()
-        self.inputPreprocessingTableWidget.setItem( row, Column.CropRoi, QTableWidgetItem( crop_roi_str ) )
+        cell_checkbox = self.inputPreprocessingTableWidget.cellWidget( row, Column.Crop )
+        cell_checkbox.setText( crop_roi_str )
 
         # Find the layerviewer that shows the cropped result and update it now
         # (Normally, it doesn't look for changes in datashape)
@@ -391,13 +415,13 @@ class InputPreprocessingGui(QWidget):
         
         setItemEnabled( Stage.INPUT, opLane.Input.ready() )
         setItemEnabled( Stage.CROPPED, opLane.CroppedImage.ready() )
-        #setItemEnabled( Stage.DOWNSAMPLED, opLane.Output.ready() )
+        setItemEnabled( Stage.DOWNSAMPLED, opLane.DownsampledImage.ready() )
 
     def createLayerViewer(self, opLane, stage):
         """
         This method provides an instance of LayerViewerGui for the given data lane.
         """
-        return InputPreprocessingLayerViewerGui(stage, self.parentApplet, opLane)
+        return InputPreprocessingLayerViewerGui(stage, self.parentApplet, opLane, crosshair=False)
 
 def _get_crop_extents(opLane):
     # The volume editor crop model needs extents in xyz order (3d only),
@@ -427,7 +451,6 @@ class InputPreprocessingLayerViewerGui(LayerViewerGui):
         opLane = self.topLevelOperatorView
 
         if self._stage == Stage.INPUT:
-            # Show the exported data on disk
             if opLane.Input.ready():
                 inputLayer = self.createStandardLayerFromSlot( opLane.Input )
                 inputLayer.name = "Input Data"
@@ -439,16 +462,20 @@ class InputPreprocessingLayerViewerGui(LayerViewerGui):
                 self.editor.cropModel.set_crop_extents( crop_extents_3d )
         
         if self._stage == Stage.CROPPED:
-            # Show the exported data on disk
             if opLane.CroppedImage.ready():
                 croppedLayer = self.createStandardLayerFromSlot( opLane.CroppedImage )
-                croppedLayer.name = "Cropped data"
+                croppedLayer.name = "Cropped"
                 croppedLayer.visible = True
                 croppedLayer.opacity = 1.0
                 layers.append(croppedLayer)
 
-        # TODO
-        #if self._stage == self.SHOW_DOWNAMPLED
+        if self._stage == Stage.DOWNSAMPLED:
+            if opLane.DownsampledImage.ready():
+                downsampledLayer = self.createStandardLayerFromSlot( opLane.DownsampledImage )
+                downsampledLayer.name = "Downsampled"
+                downsampledLayer.visible = True
+                downsampledLayer.opacity = 1.0
+                layers.append(downsampledLayer)
 
         return layers
 
@@ -459,4 +486,6 @@ class InputPreprocessingLayerViewerGui(LayerViewerGui):
             shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.Input)
         elif self._stage == Stage.CROPPED and self.topLevelOperatorView.CroppedImage.ready():
             shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.CroppedImage)
+        elif self._stage == Stage.DOWNSAMPLED and self.topLevelOperatorView.DownsampledImage.ready():
+            shape = self.getVoluminaShapeForSlot(self.topLevelOperatorView.DownsampledImage)
         return shape
