@@ -47,15 +47,15 @@ class DownsampleDimensionsWidget( QTableWidget ):
                 self.downsampled_shape_changed.emit( self.get_downsampled_shape() )
             box.valueChanged.connect( emit_shape )
 
-            # Cannot downsample across channels
-            if axis_key == 'c':
+            # Cannot downsample across channels or time.
+            if axis_key == 'c' or axis_key == 't':
                 box.setEnabled(False)
                 slider.setEnabled(False)
 
             self.setItem( row, 0, QTableWidgetItem(str(original_size)) )
             self.setCellWidget( row, 1, slider )
             self.setCellWidget( row, 2, box )
-                
+
     def get_downsampled_shape(self):
         shape = []
         for row in range( self.rowCount() ):
