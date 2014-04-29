@@ -115,14 +115,19 @@ class InputPreprocessingGui(QWidget):
             # Make room in the GUI table
             self.inputPreprocessingTableWidget.insertRow( index )
             
+            opLane = self.topLevelOperator.getLane(index)
+            
             # Update the table row data when this slot has new data
             # We can't bind in the row here because the row may change in the meantime.
             multislot[index].notifyReady( bind( self.updateTableForSlot ) )
             if multislot[index].ready():
                 self.updateTableForSlot( multislot[index] )
-
-            multislot[index].notifyUnready( self._handleReadyStatusChange )
-            multislot[index].notifyReady( self._handleReadyStatusChange )
+                
+            # Update the viewer layers if these slots are activated
+            opLane.CropRoi.notifyReady( bind(self.showSelectedDataset) )
+            opLane.CropRoi.notifyUnready( bind(self.showSelectedDataset) )
+            opLane.DownsampledShape.notifyReady( bind(self.showSelectedDataset) )
+            opLane.DownsampledShape.notifyUnready( bind(self.showSelectedDataset) )
 
         self.topLevelOperator.Output.notifyInserted( bind( handleNewDataset ) )
         
@@ -234,7 +239,7 @@ class InputPreprocessingGui(QWidget):
             
             apply_resize = opLane.DownsampledShape.ready()
             if apply_resize:
-                downsampled_shape = opLane.DownsampledShape.value
+                downsampled_shape = opLane.DownsampledImage.meta.shape
                 downsampled_shape_str = str(tuple(downsampled_shape))
             else:
                 downsampled_shape_str = ""
@@ -275,7 +280,6 @@ class InputPreprocessingGui(QWidget):
 
         # refresh
         self.updateTableForSlot(opLane.Output)
-        self.showSelectedDataset()
 
     def _handleDownsampleCheckboxToggled(self, opLane, checked):
         if checked:
@@ -285,30 +289,11 @@ class InputPreprocessingGui(QWidget):
 
         # refresh
         self.updateTableForSlot(opLane.Output)
-        self.showSelectedDataset()                    
 
     def setEnabledIfAlive(self, widget, enable):
         if not sip.isdeleted(widget):
             widget.setEnabled(enable)
     
-    def _handleReadyStatusChange(self, *args):
-        """Called when at least one dataset became 'unready', so we have to disable the export button."""
-        # FIXME
-        return
-        all_ready = True
-        # Enable/disable the appropriate export buttons in the table.
-        # Use ThunkEvents to ensure that this happens in the Gui thread.        
-        for row, slot in enumerate( self.topLevelOperator.ImageToExport ):
-            all_ready &= slot.ready()
-            export_button = self.inputPreprocessingTableWidget.cellWidget( row, Column.Action )
-            if export_button is not None:
-                executable_event = ThunkEvent( partial(self.setEnabledIfAlive, export_button, slot.ready()) )
-                QApplication.instance().postEvent( self, executable_event )
-
-        # Disable the "Export all" button unless all slots are ready.
-        executable_event = ThunkEvent( partial(self.setEnabledIfAlive, self.drawer.exportAllButton, all_ready) )
-        QApplication.instance().postEvent( self, executable_event )
-
     def _handleTableSelectionChange(self):
         """
         Any time the user selects a new item, select the whole row.
@@ -366,9 +351,13 @@ class InputPreprocessingGui(QWidget):
     def showSelectedDataset(self):
         # Get the selected row and corresponding slot value
         selectedRanges = self.inputPreprocessingTableWidget.selectedRanges()
-        if len(selectedRanges) == 0:
+        if len(selectedRanges) > 0:
+            row = selectedRanges[0].topRow()
+        elif len(self.topLevelOperator.Input) == 0:
             return
-        row = selectedRanges[0].topRow()
+        else:
+            row = 0
+
         imageSlot = self.topLevelOperator.Input[row]
         
         # Create if necessary
@@ -477,6 +466,11 @@ class InputPreprocessingLayerViewerGui(LayerViewerGui):
     def __init__(self, stage, *args, **kwargs):
         super( InputPreprocessingLayerViewerGui, self ).__init__( *args, **kwargs )
         self._stage = stage
+
+        opLane = self.topLevelOperatorView
+        opLane.Input.notifyMetaChanged( self.updateAllLayers )
+        opLane.CroppedImage.notifyMetaChanged( self.updateAllLayers )
+        opLane.DownsampledImage.notifyMetaChanged( self.updateAllLayers )
     
     def setupLayers(self):
         layers = []

@@ -59,9 +59,13 @@ class InputPreprocessingParameterDlg(QDialog):
 
             if op.DownsampledShape.ready():
                 downsampled_shape = op.DownsampledShape.value
+                op.DownsampledShape.setValue( downsampled_shape )
             else:
                 downsampled_shape = original_shape
+                
+            downsampled_shape = numpy.minimum( downsampled_shape, original_shape )
             self.downsampleWidget.reinit_contents( axes, original_shape, downsampled_shape )
+            
         op.CroppedImage.notifyMetaChanged( _handleDownsampleInputChange )
         op.CroppedImage.notifyReady( _handleDownsampleInputChange )
         op.CroppedImage.notifyUnready( _handleDownsampleInputChange )

@@ -1,7 +1,7 @@
 from lazyflow.graph import Operator, InputSlot, OutputSlot
 from lazyflow.operators.generic import OpSubRegion2
-from lazyflow.operators import OpResize
-from lazyflow.roi import roiFromShape
+from lazyflow.operators import OpResize, OpBlockedArrayCache
+from lazyflow.roi import roiFromShape, determineBlockShape
 
 class OpInputPreprocessing(Operator):
     Input = InputSlot()
@@ -23,13 +23,24 @@ class OpInputPreprocessing(Operator):
         self._opResize = OpResize( parent=self )
         self._opResize.Input.connect( self._opSubRegion.Output )
 
-        # These two outputs are synonyms for now.
-        self.DownsampledImage.connect( self._opResize.Output )
-        self.Output.connect( self._opResize.Output )
-        
+        # FIXME: We use a cache here because OpResize does not yet work for arbitrary requests
+        #        It does not request a halo, and does not support output regions thinner than 2 pixels.
+        #        Adding a cache here is better than nothing, but isn't quite right:
+        #            - Pixels on block borders will suffer from border effects
+        #            - Depending on the image size, the "leftover" block may be too thin, 
+        #              in which case vigra will segfault.
+        self._opCache = OpBlockedArrayCache( parent=self )
+        self._opCache.Input.connect( self._opResize.Output )
+        self._opCache.fixAtCurrent.setValue( False )
+
         self.progressSignal = self._opResize.progressSignal
         
     def setupOutputs(self):
+        # Reset the cache block sizes, which will be updated below.
+        # (See FIXME note above.)
+        self._opCache.innerBlockShape.disconnect()
+        self._opCache.outerBlockShape.disconnect()
+        
         if self.CropRoi.ready():
             self._opSubRegion.Roi.setValue( self.CropRoi.value )
         else:
@@ -40,9 +51,23 @@ class OpInputPreprocessing(Operator):
         
         if self.DownsampledShape.ready():
             self._opResize.ResizedShape.setValue( self.DownsampledShape.value )
+
+            # Configure the cache block sizes (see FIXME note above).
+            block_shape = determineBlockShape( self._opResize.Output.meta.shape, 1e6 )
+            self._opCache.innerBlockShape.setValue( block_shape )
+            self._opCache.outerBlockShape.setValue( block_shape )
+
+            # Output must be taken from the cache.
+            self.DownsampledImage.connect( self._opCache.Output )
+            self.Output.connect( self._opCache.Output )        
         else:
             cropped_shape = self._opSubRegion.Output.meta.shape
             self._opResize.ResizedShape.setValue( cropped_shape )
+
+            # No downsampling, so avoid the cache.
+            self.DownsampledImage.connect( self._opSubRegion.Output )
+            self.Output.connect( self._opSubRegion.Output )        
+
 
     def execute(self, slot, subindex, roi, result):
         assert False, "Shouldn't get here"
