@@ -239,7 +239,7 @@ class InputPreprocessingGui(QWidget):
             
             apply_resize = opLane.DownsampledShape.ready()
             if apply_resize:
-                downsampled_shape = opLane.DownsampledImage.meta.shape
+                downsampled_shape = opLane.DownsampledShape.value
                 downsampled_shape_str = str(tuple(downsampled_shape))
             else:
                 downsampled_shape_str = ""
@@ -250,20 +250,26 @@ class InputPreprocessingGui(QWidget):
             # (It's therefore possible for RawDatasetInfo[row] to be ready() even though it's upstream partner is NOT ready.
             return
         
-        crop_checkbox = QCheckBox(crop_roi_str)
+        crop_checkbox = QCheckBox()
         crop_checkbox.setChecked( apply_crop )
         crop_checkbox.toggled.connect( partial(self._handleCropCheckboxToggled, opLane) )
 
-        resize_checkbox = QCheckBox(downsampled_shape_str)
+        resize_checkbox = QCheckBox()
         resize_checkbox.setChecked( apply_resize )
         resize_checkbox.toggled.connect( partial(self._handleDownsampleCheckboxToggled, opLane) )
 
         self.inputPreprocessingTableWidget.setItem( row, Column.Dataset, QTableWidgetItem( decode_to_qstring(nickname) ) )
-        #self.inputPreprocessingTableWidget.setItem( row, Column.CropRoi, QTableWidgetItem( crop_roi_str ) )
-        #self.inputPreprocessingTableWidget.setItem( row, Column.DownsampledShape, QTableWidgetItem( downsampled_shape_str ) )
+
+        # Note that we use both a checkbox and item text.
+        # We could place the item text in the checkbox widget, but that has problems:
+        # - The checkbox text does not look good when the row is selected (it doesn't invert to white like the rest of the row)
+        # - The checkbox will respond to clicks when the user clicks the checkbox text, which conflicts with our desired double-click behavior.
+        # Note that the item text is prefixed with some space to leave room for the checkbox to be overlaid over it.
+        self.inputPreprocessingTableWidget.setItem( row, Column.Crop, QTableWidgetItem( "     " + crop_roi_str ) )
+        self.inputPreprocessingTableWidget.setItem( row, Column.Downsample, QTableWidgetItem( "     " + downsampled_shape_str ) )
         self.inputPreprocessingTableWidget.setCellWidget( row, Column.Crop, crop_checkbox )
         self.inputPreprocessingTableWidget.setCellWidget( row, Column.Downsample, resize_checkbox )
-        self.inputPreprocessingTableWidget.resizeRowsToContents()
+        self.inputPreprocessingTableWidget.resizeColumnsToContents()
 
         # Select a row if there isn't one already selected.
         selectedRanges = self.inputPreprocessingTableWidget.selectedRanges()
@@ -353,7 +359,7 @@ class InputPreprocessingGui(QWidget):
         selectedRanges = self.inputPreprocessingTableWidget.selectedRanges()
         if len(selectedRanges) > 0:
             row = selectedRanges[0].topRow()
-        elif len(self.topLevelOperator.Input) == 0:
+        elif len(self.topLevelOperator) == 0:
             return
         else:
             row = 0
@@ -408,10 +414,7 @@ class InputPreprocessingGui(QWidget):
         opLane.CropRoi.setValue( new_roi )
 
         # Update the table
-        crop_roi_str = str(tuple(new_roi[0])) + " : " + str(tuple(new_roi[1]))
-        row = opLane.current_view_index()
-        cell_checkbox = self.inputPreprocessingTableWidget.cellWidget( row, Column.Crop )
-        cell_checkbox.setText( crop_roi_str )
+        self.updateTableForSlot( opLane.Output )
 
         # Find the layerviewer that shows the cropped result and update it now
         # (Normally, it doesn't look for changes in datashape)

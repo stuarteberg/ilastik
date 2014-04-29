@@ -7,12 +7,18 @@ class DownsampleDimensionsWidget( QTableWidget ):
 
     def __init__(self, parent):
         super( DownsampleDimensionsWidget, self ).__init__(parent)
-        self.setColumnCount( 3 )
-        self.setHorizontalHeaderLabels(["original", "", "downsampled"])
-        self.resizeColumnToContents(0)
         self._original_shape = None
         self._downsampled_shape = None
         self._sliders = collections.OrderedDict()
+    
+    def init_ui(self):
+        """
+        This function is separate it can be called after the parent ui loads the .ui file.
+        """
+        self.setColumnCount( 3 )
+        self.setHorizontalHeaderLabels(["old", "", "new"])
+        
+        self.resizeColumnsToContents()
         
     def reinit_contents(self, axes, original_shape, downsampled_shape):
         assert len(axes) == len(original_shape) == len(downsampled_shape)
@@ -55,6 +61,8 @@ class DownsampleDimensionsWidget( QTableWidget ):
             self.setItem( row, 0, QTableWidgetItem(str(original_size)) )
             self.setCellWidget( row, 1, slider )
             self.setCellWidget( row, 2, box )
+        
+        self.resizeColumnsToContents()
 
     def get_downsampled_shape(self):
         shape = []

@@ -45,6 +45,8 @@ class InputPreprocessingParameterDlg(QDialog):
         self.cropGroupBox.toggled.connect( _handleCropToggled )
 
     def _initDownsampleWidget(self):
+        self.downsampleWidget.init_ui()
+        
         op = self._op
         
         # Prepare for future crop changes.
