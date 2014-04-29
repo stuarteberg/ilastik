@@ -1,14 +1,15 @@
+import os
 import numpy
 
 from PyQt4 import uic
 from PyQt4.QtGui import QDialog
 
-class ParameterWidget(QDialog):
+class InputPreprocessingParameterDlg(QDialog):
 
     def __init__(self, parent, opInputPreprocessing):
-        super( ParameterWidget, self ).__init__(parent)
+        super( InputPreprocessingParameterDlg, self ).__init__(parent)
         self._op = opInputPreprocessing
-        uic.loadUi( 'parameterWidget.ui', self )
+        uic.loadUi( os.path.join(os.path.split(__file__)[0], 'inputPreprocessingParameterDlg.ui'), self )
         self._initSubregionWidget()
         self._initDownsampleWidget()
 
@@ -48,6 +49,8 @@ class ParameterWidget(QDialog):
         
         # Prepare for future crop changes.
         def _handleDownsampleInputChange( *args ):
+            if op._cleaningUp:
+                return
             axes = op.Input.meta.getAxisKeys()
             if op.CroppedImage.ready():
                 original_shape = op.CroppedImage.meta.shape
@@ -96,7 +99,7 @@ if __name__ == "__main__":
     assert op.CroppedImage.ready()
 
     app = QApplication([])
-    w = ParameterWidget(None, op)
+    w = InputPreprocessingParameterDlg(None, op)
     w.show()
     
     app.exec_()

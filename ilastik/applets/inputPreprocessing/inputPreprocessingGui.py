@@ -32,6 +32,10 @@ from ilastik.applets.layerViewer.layerViewerGui import LayerViewerGui
 
 from volumina.utility import decode_to_qstring
 
+from opInputPreprocessing import OpInputPreprocessing
+
+from inputPreprocessingParameterDlg import InputPreprocessingParameterDlg
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -177,7 +181,7 @@ class InputPreprocessingGui(QWidget):
 
         # Set up handlers
         self.inputPreprocessingTableWidget.itemSelectionChanged.connect(self._handleTableSelectionChange)
-        #self.inputPreprocessingTableWidget.doubleClicked.connect( self._handle )
+        self.inputPreprocessingTableWidget.cellDoubleClicked.connect( self._handleTableDoubleClicked )
 
         # Set up the viewer area
         self.initViewerStack()
@@ -213,7 +217,7 @@ class InputPreprocessingGui(QWidget):
         row = self.getSlotIndex( self.topLevelOperator.Output, slot )
         assert row != -1, "Unknown input slot!"
 
-        if not self.topLevelOperator.Output[row].ready() or\
+        if not self.topLevelOperator.Output[row].ready() or \
            not self.topLevelOperator.RawDatasetInfo[row].ready():
             return
 
@@ -234,8 +238,6 @@ class InputPreprocessingGui(QWidget):
                 downsampled_shape_str = str(tuple(downsampled_shape))
             else:
                 downsampled_shape_str = ""
-            
-            # TODO: Downsampling
             
         except Slot.SlotNotReadyError:
             # Sadly, it is possible to get here even though we checked for .ready() immediately beforehand.
@@ -313,7 +315,37 @@ class InputPreprocessingGui(QWidget):
         """
         self.selectEntireRow()
         self.showSelectedDataset()
-    
+
+    def _handleTableDoubleClicked(self, row, column):
+        # Create a dummy operator to work with by copying the settings from the selected lane
+        opLane = self.topLevelOperator.getLane(row)
+        temp_op = OpInputPreprocessing( parent=self.topLevelOperator.parent )
+        temp_op.Input.connect( opLane.Input )
+        if opLane.RawDatasetInfo.ready():
+            temp_op.RawDatasetInfo.setValue( opLane.RawDatasetInfo.value )
+        if opLane.CropRoi.ready():
+            temp_op.CropRoi.setValue( opLane.CropRoi.value )
+        if opLane.DownsampledShape.ready():
+            temp_op.DownsampledShape.setValue( opLane.DownsampledShape.value )
+        
+        dlg = InputPreprocessingParameterDlg( self, temp_op )
+        if dlg.exec_() == dlg.Accepted:
+            # Not cancelled.
+            # Now apply the settings from the temp_op to the real one.
+            if temp_op.CropRoi.ready():
+                opLane.CropRoi.setValue( temp_op.CropRoi.value )
+            else:
+                opLane.CropRoi.disconnect()
+            if temp_op.DownsampledShape.ready():
+                opLane.DownsampledShape.setValue( temp_op.DownsampledShape.value )
+            else:
+                opLane.DownsampledShape.disconnect()
+
+        # clean up that temp op
+        temp_op.cleanUp()
+        
+        self.updateTableForSlot( opLane.Output )
+
     def selectEntireRow(self):
         # FIXME: There is a better way to do this...
         # Figure out which row is selected

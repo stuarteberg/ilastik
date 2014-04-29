@@ -27,6 +27,8 @@ class OpInputPreprocessing(Operator):
         self.DownsampledImage.connect( self._opResize.Output )
         self.Output.connect( self._opResize.Output )
         
+        self.progressSignal = self._opResize.progressSignal
+        
     def setupOutputs(self):
         if self.CropRoi.ready():
             self._opSubRegion.Roi.setValue( self.CropRoi.value )
