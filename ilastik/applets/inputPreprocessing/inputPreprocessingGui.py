@@ -21,13 +21,13 @@ import collections
 import sip
 from PyQt4 import uic
 from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QApplication, QWidget, QHeaderView, QTableWidgetItem, QCheckBox, QListWidget
+from PyQt4.QtGui import QWidget, QHeaderView, QTableWidgetItem, QCheckBox, QListWidget
 
 from lazyflow.graph import Slot
 
 from ilastik.utility import bind
 from lazyflow.roi import roiFromShape
-from ilastik.utility.gui import ThreadRouter, threadRouted, ThunkEvent, ThunkEventHandler
+from ilastik.utility.gui import ThreadRouter, threadRouted, ThunkEventHandler
 from ilastik.applets.layerViewer.layerViewerGui import LayerViewerGui
 
 from volumina.utility import decode_to_qstring
@@ -44,8 +44,6 @@ class Column():
     Dataset = 0
     Crop = 1
     Downsample = 2
-    #ApplyCrop = 1
-    #ApplyDownsample = 3
 
 class Stage():
     INPUT = 0
