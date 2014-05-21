@@ -54,7 +54,7 @@ class TestPixelClassificationHeadless(unittest.TestCase):
             cls.using_random_data = True
             cls.create_random_tst_data()
 
-        cls.create_new_tst_project()
+        #cls.create_new_tst_project(1)
 
     @classmethod
     def tearDownClass(cls):
@@ -77,9 +77,12 @@ class TestPixelClassificationHeadless(unittest.TestCase):
         numpy.save(cls.SAMPLE_DATA, cls.data.astype(numpy.uint8))
 
     @classmethod
-    def create_new_tst_project(cls):
+    def create_new_tst_project(cls, N):
         # Instantiate 'shell'
-        shell = HeadlessShell(  )
+        shell = HeadlessShell()
+        
+        if os.path.exists(cls.PROJECT_FILE):
+            os.remove(cls.PROJECT_FILE)
         
         # Create a blank project file and load it.
         newProjectFilePath = cls.PROJECT_FILE
@@ -93,8 +96,10 @@ class TestPixelClassificationHeadless(unittest.TestCase):
         info = DatasetInfo()
         info.filePath = cls.SAMPLE_DATA
         opDataSelection = workflow.dataSelectionApplet.topLevelOperator
-        opDataSelection.DatasetGroup.resize(1)
-        opDataSelection.DatasetGroup[0][0].setValue(info)
+        
+        opDataSelection.DatasetGroup.resize(N)
+        for i in range(N):
+            opDataSelection.DatasetGroup[i][0].setValue(info)
         
         
         # Set some features
@@ -111,12 +116,13 @@ class TestPixelClassificationHeadless(unittest.TestCase):
         opFeatures.FeatureIds.setValue( FeatureIds )
 
         #                    sigma:   0.3    0.7    1.0    1.6    3.5    5.0   10.0
-        selections = numpy.array( [[True, False, False, False, False, False, False],
-                                   [True, False, False, False, False, False, False],
-                                   [True, False, False, False, False, False, False],
-                                   [False, False, False, False, False, False, False],
-                                   [False, False, False, False, False, False, False],
-                                   [False, False, False, False, False, False, False]] )
+#         selections = numpy.array( [[True, False, False, False, False, False, False],
+#                                    [True, False, False, False, False, False, False],
+#                                    [True, False, False, False, False, False, False],
+#                                    [False, False, True, False, False, False, False],
+#                                    [False, False, False, False, False, False, False],
+#                                    [False, False, False, False, False, False, False]] )
+        selections = numpy.ones( (6,7), dtype=bool )
         opFeatures.SelectionMatrix.setValue(selections)
     
         # Add some labels directly to the operator
@@ -134,90 +140,142 @@ class TestPixelClassificationHeadless(unittest.TestCase):
 
         # Save and close
         shell.projectManager.saveProject()
+
+        
+        def operator_count(op):
+            count = 1
+            for child in op._children:
+                count += operator_count(child)
+            return count
+        print "Operator count afer save: ", operator_count(shell.workflow)
+        
+        shell.closeCurrentProject()
         del shell
+
+    def testProjectCreateTime(self):
+        import gc
+        gc.disable()
+
+        import GreenletProfiler
+
+        import pstats
+        import cProfile as profile
+        profiler = profile.Profile()
+
+        GreenletProfiler.start()
+
         
-    @timeLogged(logger)
-    def testBasic(self):
-        # NOTE: In this test, cmd-line args to nosetests will also end up getting "parsed" by ilastik.
-        #       That shouldn't be an issue, since the pixel classification workflow ignores unrecognized options.
-        #       See if __name__ == __main__ section, below.
-        args = "--project=" + self.PROJECT_FILE
-        args += " --headless"
-        args += " --sys_tmp_dir=/tmp"
+        from lazyflow.utility import Timer
+        N = 10
+        timings = [0]
+        for i in range(10,N+1):
+            with Timer() as timer:
+                assert not gc.isenabled()
+                #profiler.enable()
+                self.create_new_tst_project(i)
+                #profiler.disable()
+            timing = timer.seconds()
+            print "{} lanes = {}".format( i, timing )
+            timings.append( timing )
 
-        # Batch export options
-        args += " --output_format=hdf5"
-        args += " --output_filename_format={dataset_dir}/{nickname}_prediction.h5"
-        args += " --output_internal_path=volume/pred_volume"
-        args += " " + self.SAMPLE_DATA
+        GreenletProfiler.stop()
 
-        sys.argv = ['ilastik.py'] # Clear the existing commandline args so it looks like we're starting fresh.
-        sys.argv += args.split()
+        stats = GreenletProfiler.get_func_stats()
+        #stats.print_all()
+        stats.save('/Users/bergs/tmp/profile.callgrind', type='callgrind')
 
-        # Start up the ilastik.py entry script as if we had launched it from the command line
-        ilastik_entry_file_path = os.path.join( os.path.split( ilastik.__file__ )[0], "../ilastik.py" )
-        imp.load_source( 'main', ilastik_entry_file_path )
+#             with open( '/Users/bergs/tmp/pixel_class_profile_10_ncalls_NO_STACKER.txt', 'w' ) as f:
+#                 ps = pstats.Stats(profiler, stream=f).sort_stats('ncalls')
+#                 ps.print_stats()
+#                 ps.dump_stats('/Users/bergs/tmp/pixel_class_profile_10_ncalls_NO_STACKER.pstats')
+            
+
+#         import matplotlib.pyplot as plt
+#         plt.plot(list(range(N)), timings)
+#         plt.show()
         
-        # Examine the output for basic attributes
-        output_path = self.SAMPLE_DATA[:-4] + "_prediction.h5"
-        with h5py.File(output_path, 'r') as f:
-            assert "/volume/pred_volume" in f
-            pred_shape = f["/volume/pred_volume"].shape
-            # Assume channel is last axis
-            assert pred_shape[:-1] == self.data.shape[:-1], "Prediction volume has wrong shape: {}".format( pred_shape )
-            assert pred_shape[-1] == 2, "Prediction volume has wrong shape: {}".format( pred_shape )
-        
-    @timeLogged(logger)
-    def testLotsOfOptions(self):
-        # NOTE: In this test, cmd-line args to nosetests will also end up getting "parsed" by ilastik.
-        #       That shouldn't be an issue, since the pixel classification workflow ignores unrecognized options.
-        #       See if __name__ == __main__ section, below.
-        args = []
-        args.append( "--project=" + self.PROJECT_FILE )
-        args.append( "--headless" )
-        args.append( "--sys_tmp_dir=/tmp" )
-
-        # Batch export options
-        args.append( '--output_format=png sequence' ) # If we were actually launching from the command line, 'png sequence' would be in quotes...
-        args.append( "--output_filename_format={dataset_dir}/{nickname}_prediction_z{slice_index}.png" )
-        args.append( "--export_dtype=uint8" )
-        args.append( "--output_axis_order=zxyc" )
-        
-        args.append( "--pipeline_result_drange=(0.0,1.0)" )
-        args.append( "--export_drange=(0,255)" )
-
-        args.append( "--cutout_subregion=[(0,50,50,0,0), (1, 150, 150, 50, 2)]" )
-        args.append( self.SAMPLE_DATA )
-
-        sys.argv = ['ilastik.py'] # Clear the existing commandline args so it looks like we're starting fresh.
-        sys.argv += args
-
-        # Start up the ilastik.py entry script as if we had launched it from the command line
-        # This will execute the batch mode script
-        ilastik_entry_file_path = os.path.join( os.path.split( ilastik.__file__ )[0], "../ilastik.py" )
-        imp.load_source( 'main', ilastik_entry_file_path )
-
-        output_path = self.SAMPLE_DATA[:-4] + "_prediction_z{slice_index}.png"
-        globstring = output_path.format( slice_index=999 )
-        globstring = globstring.replace('999', '*')
-
-        opReader = OpStackLoader( graph=Graph() )
-        opReader.globstring.setValue( globstring )
-
-        # (The OpStackLoader produces txyzc order.)
-        opReorderAxes = OpReorderAxes( graph=Graph() )
-        opReorderAxes.AxisOrder.setValue( 'txyzc' )
-        opReorderAxes.Input.connect( opReader.stack )
-        
-        readData = opReorderAxes.Output[:].wait()
-
-        # Check basic attributes
-        assert readData.shape[:-1] == self.data[0:1, 50:150, 50:150, 0:50, 0:2].shape[:-1] # Assume channel is last axis
-        assert readData.shape[-1] == 2, "Wrong number of channels.  Expected 2, got {}".format( readData.shape[-1] )
-        
-        # Clean-up.
-        opReorderAxes.cleanUp()
-        opReader.cleanUp()
+#     @timeLogged(logger)
+#     def testBasic(self):
+#         # NOTE: In this test, cmd-line args to nosetests will also end up getting "parsed" by ilastik.
+#         #       That shouldn't be an issue, since the pixel classification workflow ignores unrecognized options.
+#         #       See if __name__ == __main__ section, below.
+#         args = "--project=" + self.PROJECT_FILE
+#         args += " --headless"
+#         args += " --sys_tmp_dir=/tmp"
+# 
+#         # Batch export options
+#         args += " --output_format=hdf5"
+#         args += " --output_filename_format={dataset_dir}/{nickname}_prediction.h5"
+#         args += " --output_internal_path=volume/pred_volume"
+#         args += " " + self.SAMPLE_DATA
+# 
+#         sys.argv = ['ilastik.py'] # Clear the existing commandline args so it looks like we're starting fresh.
+#         sys.argv += args.split()
+# 
+#         # Start up the ilastik.py entry script as if we had launched it from the command line
+#         ilastik_entry_file_path = os.path.join( os.path.split( ilastik.__file__ )[0], "../ilastik.py" )
+#         imp.load_source( 'main', ilastik_entry_file_path )
+#         
+#         # Examine the output for basic attributes
+#         output_path = self.SAMPLE_DATA[:-4] + "_prediction.h5"
+#         with h5py.File(output_path, 'r') as f:
+#             assert "/volume/pred_volume" in f
+#             pred_shape = f["/volume/pred_volume"].shape
+#             # Assume channel is last axis
+#             assert pred_shape[:-1] == self.data.shape[:-1], "Prediction volume has wrong shape: {}".format( pred_shape )
+#             assert pred_shape[-1] == 2, "Prediction volume has wrong shape: {}".format( pred_shape )
+#         
+#     @timeLogged(logger)
+#     def testLotsOfOptions(self):
+#         # NOTE: In this test, cmd-line args to nosetests will also end up getting "parsed" by ilastik.
+#         #       That shouldn't be an issue, since the pixel classification workflow ignores unrecognized options.
+#         #       See if __name__ == __main__ section, below.
+#         args = []
+#         args.append( "--project=" + self.PROJECT_FILE )
+#         args.append( "--headless" )
+#         args.append( "--sys_tmp_dir=/tmp" )
+# 
+#         # Batch export options
+#         args.append( '--output_format=png sequence' ) # If we were actually launching from the command line, 'png sequence' would be in quotes...
+#         args.append( "--output_filename_format={dataset_dir}/{nickname}_prediction_z{slice_index}.png" )
+#         args.append( "--export_dtype=uint8" )
+#         args.append( "--output_axis_order=zxyc" )
+#         
+#         args.append( "--pipeline_result_drange=(0.0,1.0)" )
+#         args.append( "--export_drange=(0,255)" )
+# 
+#         args.append( "--cutout_subregion=[(0,50,50,0,0), (1, 150, 150, 50, 2)]" )
+#         args.append( self.SAMPLE_DATA )
+# 
+#         sys.argv = ['ilastik.py'] # Clear the existing commandline args so it looks like we're starting fresh.
+#         sys.argv += args
+# 
+#         # Start up the ilastik.py entry script as if we had launched it from the command line
+#         # This will execute the batch mode script
+#         ilastik_entry_file_path = os.path.join( os.path.split( ilastik.__file__ )[0], "../ilastik.py" )
+#         imp.load_source( 'main', ilastik_entry_file_path )
+# 
+#         output_path = self.SAMPLE_DATA[:-4] + "_prediction_z{slice_index}.png"
+#         globstring = output_path.format( slice_index=999 )
+#         globstring = globstring.replace('999', '*')
+# 
+#         opReader = OpStackLoader( graph=Graph() )
+#         opReader.globstring.setValue( globstring )
+# 
+#         # (The OpStackLoader produces txyzc order.)
+#         opReorderAxes = OpReorderAxes( graph=Graph() )
+#         opReorderAxes.AxisOrder.setValue( 'txyzc' )
+#         opReorderAxes.Input.connect( opReader.stack )
+#         
+#         readData = opReorderAxes.Output[:].wait()
+# 
+#         # Check basic attributes
+#         assert readData.shape[:-1] == self.data[0:1, 50:150, 50:150, 0:50, 0:2].shape[:-1] # Assume channel is last axis
+#         assert readData.shape[-1] == 2, "Wrong number of channels.  Expected 2, got {}".format( readData.shape[-1] )
+#         
+#         # Clean-up.
+#         opReorderAxes.cleanUp()
+#         opReader.cleanUp()
 
 if __name__ == "__main__":
     #make the program quit on Ctrl+C
