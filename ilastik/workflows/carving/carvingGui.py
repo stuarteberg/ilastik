@@ -91,6 +91,8 @@ class CarvingGui(LabelingGui):
         
         mgr = ShortcutManager()
         ActionInfo = ShortcutManager.ActionInfo
+
+        self._updateLabelShortcuts()
         
         #set up keyboard shortcuts
         mgr.register( "3", ActionInfo( "Carving", 
@@ -201,28 +203,7 @@ class CarvingGui(LabelingGui):
             self.labelingDrawerUi.exportAllMeshesButton.clicked.connect(self._exportAllObjectMeshes)
 
         
-        def labelBackground():
-            self.selectLabel(0)
-        def labelObject():
-            self.selectLabel(1)
-
         self._labelControlUi.labelListModel.allowRemove(False)
-
-        bgToolTipObject = LabelListModel.EntryToolTipAdapter(self._labelControlUi.labelListModel, 0)
-        mgr.register( "1", ActionInfo( "Carving", 
-                                       "Select background label", 
-                                       "Select background label", 
-                                       labelBackground,
-                                       self.viewerControlWidget(),
-                                       bgToolTipObject ) )
-
-        fgToolTipObject = LabelListModel.EntryToolTipAdapter(self._labelControlUi.labelListModel, 1)
-        mgr.register( "2", ActionInfo( "Carving", 
-                                       "Select object label", 
-                                       "Select object label", 
-                                       labelObject,
-                                       self.viewerControlWidget(),
-                                       fgToolTipObject ) )
 
         def layerIndexForName(name):
             return self.layerstack.findMatchingIndex(lambda x: x.name == name)
@@ -279,6 +260,26 @@ class CarvingGui(LabelingGui):
         #self.labelingDrawerUi.randomizeColors.clicked.connect(onRandomizeColors)
         self._updateGui()
     
+    def _updateLabelShortcuts(self):
+        mgr = ShortcutManager()
+        ActionInfo = ShortcutManager.ActionInfo
+        
+        bgToolTipObject = LabelListModel.EntryToolTipAdapter(self._labelControlUi.labelListModel, 0)
+        mgr.register( "1", ActionInfo( "Carving", 
+                                       "Select background label", 
+                                       "Select background label", 
+                                       partial(self.selectLabel, 0),
+                                       self._labelControlUi.labelListView,
+                                       bgToolTipObject ) )
+
+        fgToolTipObject = LabelListModel.EntryToolTipAdapter(self._labelControlUi.labelListModel, 1)
+        mgr.register( "2", ActionInfo( "Carving", 
+                                       "Select object label", 
+                                       "Select object label", 
+                                       partial(self.selectLabel, 1),
+                                       self._labelControlUi.labelListView,
+                                       fgToolTipObject ) )
+
     def _after_init(self):
         super(CarvingGui, self)._after_init()
         if self.render:self._toggleSegmentation3D()
