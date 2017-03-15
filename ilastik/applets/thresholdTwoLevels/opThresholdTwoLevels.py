@@ -30,6 +30,7 @@ from ilastik.applets.base.applet import DatasetConstraintError
 # local
 from thresholdingTools import OpAnisotropicGaussianSmoothing5d, OpSelectLabels, select_labels
 from ipht import threshold_from_cores
+from _OpGraphCut import segmentGC
 
 logger = logging.getLogger(__name__)
 
